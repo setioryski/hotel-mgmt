@@ -1,0 +1,29 @@
+<nav class="bg-white shadow">
+  <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+    <a href="/" class="text-xl font-bold">Hotel PMS</a>
+    <ul class="flex space-x-4">
+      <% if (user && user.role === 'admin') { %>
+        <li><a href="/admin/dashboard" class="hover:underline">Dashboard</a></li>
+        <li><a href="/admin/hotels"    class="hover:underline">Hotels</a></li>
+        <li><a href="/admin/rooms"     class="hover:underline">Rooms</a></li>
+        <li><a href="/admin/guests"    class="hover:underline">Guests</a></li>
+        <li><a href="/admin/calendar"  class="hover:underline">Calendar</a></li>
+      <% } else if (user) { %>
+        <li><a href="/guest/dashboard" class="hover:underline">My Bookings</a></li>
+        <li><a href="/guest/profile"   class="hover:underline">Profile</a></li>
+      <% } %>
+      <% if (user) { %>
+        <li><button id="logout" class="hover:underline">Logout</button></li>
+      <% } else { %>
+        <li><a href="/login" class="hover:underline">Login</a></li>
+      <% } %>
+    </ul>
+  </div>
+</nav>
+
+<script>
+  document.getElementById('logout')?.addEventListener('click', () => {
+    localStorage.removeItem('token');
+    window.location.href = '/login';
+  });
+</script>

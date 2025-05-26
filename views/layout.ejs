@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title><%= title %> | Hotel PMS</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css"
+    rel="stylesheet"
+  >
+  <link
+    href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css"
+    rel="stylesheet"
+  >
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col">
+  <%- include('partials/header', { user }) %>
+  <main class="flex-1 container mx-auto px-4 py-6">
+    <%- body %>
+  </main>
+  <%- include('partials/footer') %>
+
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+  <script>
+    const token = localStorage.getItem('token')
+    function authFetch(url, opts = {}) {
+      opts.headers = Object.assign(opts.headers||{}, {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + token
+      });
+      return fetch(url, opts);
+    }
+  </script>
+  <%- scripts %>
+</body>
+</html>

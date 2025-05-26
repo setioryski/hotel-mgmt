@@ -1,0 +1,116 @@
+
+<% title = 'Manage Hotels' %>
+
+<div class="flex justify-between items-center mb-4">
+  <h1 class="text-2xl font-bold">Hotels</h1>
+  <button id="create-hotel-btn" class="bg-green-500 text-white px-4 py-2 rounded">Add Hotel</button>
+</div>
+
+<table class="min-w-full bg-white rounded shadow">
+  <thead>
+    <tr class="bg-gray-200">
+      <th class="px-4 py-2">Name</th>
+      <th class="px-4 py-2">Base Price</th>
+      <th class="px-4 py-2">Address</th>
+      <th class="px-4 py-2">Contact</th>
+      <th class="px-4 py-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody id="hotels-tbody"></tbody>
+</table>
+
+<!-- Modal -->
+<div id="hotel-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden">
+  <div class="bg-white p-6 rounded shadow w-96">
+    <h2 id="hotel-modal-title" class="text-xl font-semibold mb-4">Add Hotel</h2>
+    <form id="hotel-form" class="space-y-4">
+      <input id="hotel-name"        type="text"     placeholder="Name" required class="w-full p-2 border rounded" />
+      <input id="hotel-basePrice"   type="number"   placeholder="Base Price" required class="w-full p-2 border rounded" />
+      <input id="hotel-address"     type="text"     placeholder="Address" class="w-full p-2 border rounded" />
+      <input id="hotel-contact"     type="text"     placeholder="Contact" class="w-full p-2 border rounded" />
+      <textarea id="hotel-seasonal" placeholder="Seasonal Multipliers JSON" class="w-full p-2 border rounded"></textarea>
+      <div class="flex justify-end space-x-2">
+        <button type="button" id="hotel-cancel-btn" class="px-4 py-2">Cancel</button>
+        <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<% scripts = `
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const tbody   = document.getElementById('hotels-tbody');
+  const modal   = document.getElementById('hotel-modal');
+  const form    = document.getElementById('hotel-form');
+  let   editId  = null;
+
+  async function load() {
+    const hotels = await authFetch('/api/hotels').then(r=>r.json());
+    tbody.innerHTML = hotels.map(h => \`
+      <tr>
+        <td class="border px-4 py-2">\${h.name}</td>
+        <td class="border px-4 py-2">\${h.basePrice}</td>
+        <td class="border px-4 py-2">\${h.address||''}</td>
+        <td class="border px-4 py-2">\${h.contact||''}</td>
+        <td class="border px-4 py-2 space-x-2">
+          <button data-id="\${h._id}" class="edit-btn text-blue-600">Edit</button>
+          <button data-id="\${h._id}" class="delete-btn text-red-600">Delete</button>
+        </td>
+      </tr>\`).join('');
+    attachEvents();
+  }
+
+  function attachEvents() {
+    document.querySelectorAll('.edit-btn').forEach(btn => {
+      btn.onclick = async () => {
+        editId = btn.dataset.id;
+        const h = await authFetch(\`/api/hotels/\${editId}\`).then(r=>r.json());
+        document.getElementById('hotel-name').value      = h.name;
+        document.getElementById('hotel-basePrice').value = h.basePrice;
+        document.getElementById('hotel-address').value   = h.address;
+        document.getElementById('hotel-contact').value   = h.contact;
+        document.getElementById('hotel-seasonal').value  = JSON.stringify(h.seasonalMultipliers);
+        document.getElementById('hotel-modal-title').innerText = 'Edit Hotel';
+        modal.classList.remove('hidden');
+      };
+    });
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete?')) return;
+        await authFetch(\`/api/hotels/\${btn.dataset.id}\`, { method:'DELETE' });
+        load();
+      };
+    });
+  }
+
+  document.getElementById('create-hotel-btn').onclick = () => {
+    editId = null;
+    form.reset();
+    document.getElementById('hotel-modal-title').innerText = 'Add Hotel';
+    modal.classList.remove('hidden');
+  };
+  document.getElementById('hotel-cancel-btn').onclick = () => modal.classList.add('hidden');
+
+  form.onsubmit = async e => {
+    e.preventDefault();
+    const payload = {
+      name:  form['hotel-name'].value,
+      basePrice: +form['hotel-basePrice'].value,
+      address:   form['hotel-address'].value,
+      contact:   form['hotel-contact'].value,
+      seasonalMultipliers: JSON.parse(form['hotel-seasonal'].value||'[]')
+    };
+    if (editId) {
+      await authFetch(\`/api/hotels/\${editId}\`, { method:'PUT', body:JSON.stringify(payload) });
+    } else {
+      await authFetch('/api/hotels',    { method:'POST', body:JSON.stringify(payload) });
+    }
+    modal.classList.add('hidden');
+    load();
+  };
+
+  load();
+});
+</script>
+` %>

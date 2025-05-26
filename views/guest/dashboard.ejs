@@ -1,0 +1,28 @@
+
+<% title = 'My Bookings' %>
+
+<h1 class="text-2xl font-bold mb-4">My Bookings</h1>
+<div id="bookings-list" class="space-y-4"></div>
+
+<% scripts = `
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  const all = await authFetch('/api/bookings').then(r=>r.json());
+  const mine = all.filter(b => b.title === '<%= user.name %>');
+  const list = document.getElementById('bookings-list');
+  list.innerHTML = mine.map(b => \`
+    <div class="bg-white p-4 rounded shadow">
+      <p><strong>Room:</strong> \${b.resourceId}</p>
+      <p><strong>Dates:</strong> \${b.start.split('T')[0]} → \${b.end.split('T')[0]}</p>
+      <button data-id="\${b.id}" class="cancel-btn mt-2 bg-red-500 text-white px-2 py-1 rounded">Cancel</button>
+    </div>\`).join('');
+  document.querySelectorAll('.cancel-btn').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Cancel booking?')) return;
+      await authFetch(\`/api/bookings/\${btn.dataset.id}\`,{method:'DELETE'});
+      btn.closest('div').remove();
+    };
+  });
+});
+</script>
+` %>
