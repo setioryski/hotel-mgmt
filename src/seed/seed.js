@@ -13,7 +13,7 @@ const run = async () => {
   await User.create({
     name: 'Admin',
     email: 'admin@hotel.com',
-    password: adminPass,
+    password: 1234,
     role: 'admin'
   });
 

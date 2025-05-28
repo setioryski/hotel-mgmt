@@ -1,76 +1,30 @@
-<!-- views/auth/login.ejs -->
 <% title = 'Login' %>
-
 <div class="max-w-md mx-auto mt-16 bg-white p-8 rounded shadow">
   <h1 class="text-2xl font-bold mb-6 text-center">Login</h1>
-
-  <!-- Inline error message container -->
   <div id="error-msg" class="text-red-500 mb-4 hidden"></div>
-
   <form id="login-form" class="space-y-4">
-    <input
-      id="email"
-      type="email"
-      placeholder="Email"
-      required
-      class="w-full p-2 border rounded"
-    />
-    <input
-      id="password"
-      type="password"
-      placeholder="Password"
-      required
-      class="w-full p-2 border rounded"
-    />
-    <button
-      type="submit"
-      class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700"
-    >
-      Login
-    </button>
+    <input id="email" type="email" placeholder="Email" required class="w-full p-2 border rounded" />
+    <input id="password" type="password" placeholder="Password" required class="w-full p-2 border rounded" />
+    <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded">Login</button>
   </form>
-
-  <p class="mt-4 text-center">
-    No account? <a href="/register" class="text-blue-600 hover:underline">Register</a>
-  </p>
+  <p class="mt-4 text-center">No account? <a href="/register" class="text-blue-600">Register</a></p>
 </div>
-
 <% scripts = `
 <script>
-  const form = document.getElementById('login-form');
-  const errorDiv = document.getElementById('error-msg');
-
-  form.addEventListener('submit', async e => {
+  document.getElementById('login-form').addEventListener('submit', async e => {
     e.preventDefault();
-    errorDiv.classList.add('hidden');       // clear previous error
-    errorDiv.textContent = '';
-
+    const errDiv = document.getElementById('error-msg'); errDiv.hidden = true;
     try {
-const res = await fetch('/api/auth/login', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  credentials: 'include',    // ← MUST be 'include'
-  body: JSON.stringify({
-    email:    document.getElementById('email').value,
-    password: document.getElementById('password').value
-  })
-});
+      const res = await fetch('/api/auth/login', {
+        method: 'POST', headers: { 'Content-Type':'application/json' }, credentials:'include',
+        body: JSON.stringify({ email:document.getElementById('email').value, password:document.getElementById('password').value })
+      });
       const data = await res.json();
-
-      if (!res.ok) {
-        // show server-sent message or fallback
-        errorDiv.textContent = data.msg || 'Invalid credentials';
-        errorDiv.classList.remove('hidden');
-        return;
-      }
-
-      // success: store token and go to dashboard
+      if (!res.ok) throw new Error(data.msg);
       localStorage.setItem('token', data.token);
       window.location.href = '/dashboard';
-    } catch (err) {
-      console.error(err);
-      errorDiv.textContent = 'Unexpected error, please try again';
-      errorDiv.classList.remove('hidden');
+    } catch(err) {
+      const div = document.getElementById('error-msg'); div.textContent = err.message; div.hidden = false;
     }
   });
 </script>

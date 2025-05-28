@@ -1,175 +1,139 @@
-document.addEventListener('DOMContentLoaded', () => {
-  const loginForm  = document.getElementById('loginForm');
-  const calendarEl = document.getElementById('calendar');
+// public/js/calendar.js
+console.log('📅 calendar.js loaded');
 
-  // 1️⃣ Handle login
-  loginForm.addEventListener('submit', async e => {
-    e.preventDefault();
-    const email    = loginForm.email.value;
-    const password = loginForm.password.value;
+// helper to include JWT from localStorage on every request
+function authFetch(url, opts = {}) {
+  const token = localStorage.getItem('token');
+  opts.headers = Object.assign({
+    'Content-Type': 'application/json',
+    'Authorization': 'Bearer ' + token
+  }, opts.headers);
+  opts.credentials = 'include';
+  return fetch(url, opts);
+}
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
-      });
-      if (!res.ok) throw new Error('Login failed');
-      const { token } = await res.json();
-      localStorage.setItem('token', token);
-      initCalendar();    // proceed after login
-      loginForm.style.display  = 'none';
-      calendarEl.style.display = 'block';
-    } catch (err) {
-      alert(err.message);
-    }
+document.addEventListener('DOMContentLoaded', async () => {
+  console.log('DOM ready — initializing calendar…');
+
+  const hotelSelect = document.getElementById('hotel-select');
+  const calendarEl  = document.getElementById('calendar');
+  let calendar;
+
+  // 1️⃣ Load hotels into dropdown
+  const hotels = await authFetch('/api/hotels').then(r => r.json());
+  hotels.forEach(h => {
+    const opt = document.createElement('option');
+    opt.value       = h._id;
+    opt.textContent = h.name;
+    hotelSelect.appendChild(opt);
   });
 
-  // 2️⃣ If already logged in, skip form
-  if (localStorage.getItem('token')) {
-    loginForm.style.display  = 'none';
-    calendarEl.style.display = 'block';
-    initCalendar();
-  } else {
-    calendarEl.style.display = 'none';
-  }
+  // 2️⃣ Initialize calendar on first hotel
+  if (hotels.length) initCalendar(hotels[0]._id);
 
-  // 3️⃣ Calendar initialization
-  async function initCalendar() {
-    const token = localStorage.getItem('token');
-    if (!token) return;
+  // 3️⃣ Switch calendar when hotel changes
+  hotelSelect.addEventListener('change', () => initCalendar(hotelSelect.value));
 
-    // load rooms as resources
-    let rooms = [];
-    try {
-      const res = await fetch('/api/rooms', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!res.ok) throw new Error('Failed to fetch rooms');
-      rooms = await res.json();
-    } catch (err) {
-      alert(err.message);
-      return;
-    }
+  // Calendar setup function
+  function initCalendar(hotelId) {
+    if (calendar) calendar.destroy();
 
-    const { Calendar }               = FullCalendar;
-    const { ResourceTimelinePlugin } = FullCalendarResourceTimeline;
-    const { InteractionPlugin }      = FullCalendarInteraction;
-
-    const calendar = new Calendar(calendarEl, {
-      plugins: [ ResourceTimelinePlugin, InteractionPlugin ],
-      initialView: 'resourceTimelineDay',
+    calendar = new FullCalendar.Calendar(calendarEl, {
+      // using Scheduler bundle auto-registration—no explicit plugins needed
+      initialView: 'resourceTimelineMonth',
       resourceAreaHeaderContent: 'Rooms',
-      resources: rooms.map(r => ({ id: r._id, title: `Room ${r.number}` })),
-      events: {
-        url: '/api/bookings',
-        headers: { Authorization: `Bearer ${token}` },
-        failure() { alert('Error loading bookings'); }
+      height: 'auto',
+      headerToolbar: {
+        left:  'prev,next today',
+        center:'title',
+        right: 'resourceTimelineDay,resourceTimelineWeek,resourceTimelineMonth'
       },
-      selectable: true,
-      editable: true,
+      views: {
+        resourceTimelineDay:   { buttonText: 'Day' },
+        resourceTimelineWeek:  { buttonText: 'Week' },
+        resourceTimelineMonth: { buttonText: 'Month' }
+      },
 
-      // Create booking
+      // fetch rooms as resources
+      resources: async (fetchInfo, success, failure) => {
+        try {
+          const rooms = await authFetch(`/api/rooms?hotel=${hotelId}`).then(r => r.json());
+          success(rooms.map(r => ({
+            id:    r._id,
+            title: `${r.number} (${r.type})`
+          })));
+        } catch (e) {
+          failure(e);
+        }
+      },
+
+      // fetch bookings as events
+      events: {
+        url:    `/api/bookings?hotel=${hotelId}`,
+        method: 'GET',
+        failure: () => alert('Could not load bookings')
+      },
+
+      selectable: true,
+      editable:   true,
+
+      // create new booking on select
       select: info => {
         const guestEmail = prompt('Guest email:');
-        if (!guestEmail) return;
-        fetch('/api/bookings', {
+        if (!guestEmail) {
+          calendar.unselect();
+          return;
+        }
+        authFetch('/api/bookings', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
           body: JSON.stringify({
             room:      info.resource.id,
+            guestEmail,
             startDate: info.startStr,
-            endDate:   info.endStr,
-            guestEmail
+            endDate:   info.endStr
           })
         })
-        .then(r => {
-          if (!r.ok) throw new Error('Booking failed');
-          return r.json();
-        })
+        .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
         .then(() => calendar.refetchEvents())
-        .catch(err => alert(err.message));
-      },
-
-      // Move booking
-      eventDrop: info => {
-        fetch(`/api/bookings/${info.event.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            startDate: info.event.startStr,
-            endDate:   info.event.endStr
-          })
-        })
-        .catch(() => {
-          alert('Could not move booking');
-          info.revert();
+        .catch(err => {
+          alert(err.msg || err.message || 'Booking failed');
+          calendar.refetchEvents();
         });
       },
 
-      // Resize booking
-      eventResize: info => {
-        fetch(`/api/bookings/${info.event.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            startDate: info.event.startStr,
-            endDate:   info.event.endStr
-          })
-        })
-        .catch(() => {
-          alert('Could not resize booking');
-          info.revert();
-        });
-      },
+      // move or resize bookings
+      eventDrop:   info => updateBooking(info.event),
+      eventResize: info => updateBooking(info.event),
 
-      // Cancel booking
+      // cancel booking on click
       eventClick: info => {
         if (!confirm('Cancel this booking?')) return;
-        fetch(`/api/bookings/${info.event.id}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        .then(r => {
-          if (!r.ok) throw new Error('Cancel failed');
-          info.event.remove();
-        })
-        .catch(err => alert(err.message));
+        authFetch(`/api/bookings/${info.event.id}`, { method: 'DELETE' })
+          .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
+          .then(() => info.event.remove())
+          .catch(err => alert(err.msg || err.message || 'Cancel failed'));
       }
     });
 
     calendar.render();
-  }
-});
 
-
-document.addEventListener('DOMContentLoaded', () => {
-  let calendar = new FullCalendar.Calendar(
-    document.getElementById('calendar'),
-    {
-      plugins: [
-        FullCalendarInteraction,
-        FullCalendarDayGrid,
-        FullCalendarTimeGrid,
-        FullCalendarList,
-        FullCalendarTimeline,
-        FullCalendarResourceTimeline
-      ],
-      initialView: 'resourceTimelineWeek',
-      resources: '/api/rooms',
-      events:    '/api/bookings',
-      editable:  true,
-      selectable: true
+    // helper to persist date changes
+    function updateBooking(event) {
+      authFetch(`/api/bookings/${event.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          startDate: event.startStr,
+          endDate:   event.endStr
+        })
+      })
+      .then(r => {
+        if (!r.ok) return r.json().then(e => Promise.reject(e));
+        return r.json();
+      })
+      .catch(err => {
+        alert(err.msg || err.message || 'Update failed');
+        event.revert();
+      });
     }
-  );
-  calendar.render();
+  }
 });
