@@ -1,31 +1,20 @@
 <% title = 'Login' %>
-<div class="max-w-md mx-auto mt-16 bg-white p-8 rounded shadow">
-  <h1 class="text-2xl font-bold mb-6 text-center">Login</h1>
-  <div id="error-msg" class="text-red-500 mb-4 hidden"></div>
-  <form id="login-form" class="space-y-4">
-    <input id="email" type="email" placeholder="Email" required class="w-full p-2 border rounded" />
-    <input id="password" type="password" placeholder="Password" required class="w-full p-2 border rounded" />
-    <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded">Login</button>
-  </form>
-  <p class="mt-4 text-center">No account? <a href="/register" class="text-blue-600">Register</a></p>
+<div class="min-h-screen flex items-center justify-center bg-gray-100">
+  <div class="bg-white p-8 rounded shadow w-full max-w-md">
+    <h2 class="text-2xl font-bold mb-6 text-center">Login</h2>
+    <form method="POST" action="/api/auth/login" class="space-y-4">
+      <div>
+        <label for="email" class="block font-medium">Email</label>
+        <input type="email" name="email" required class="w-full border px-3 py-2 rounded" />
+      </div>
+      <div>
+        <label for="password" class="block font-medium">Password</label>
+        <input type="password" name="password" required class="w-full border px-3 py-2 rounded" />
+      </div>
+      <button type="submit" class="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700">Log In</button>
+    </form>
+    <p class="mt-4 text-sm text-center">
+      Don't have an account? <a href="/register" class="text-blue-600 hover:underline">Register</a>
+    </p>
+  </div>
 </div>
-<% scripts = `
-<script>
-  document.getElementById('login-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const errDiv = document.getElementById('error-msg'); errDiv.hidden = true;
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST', headers: { 'Content-Type':'application/json' }, credentials:'include',
-        body: JSON.stringify({ email:document.getElementById('email').value, password:document.getElementById('password').value })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.msg);
-      localStorage.setItem('token', data.token);
-      window.location.href = '/dashboard';
-    } catch(err) {
-      const div = document.getElementById('error-msg'); div.textContent = err.message; div.hidden = false;
-    }
-  });
-</script>
-` %>

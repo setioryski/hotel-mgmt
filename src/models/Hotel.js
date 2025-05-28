@@ -1,12 +1,13 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/sequelize.js';
 
-const hotelSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  address: String,
-  contact: String,
-  basePrice: { type: Number, required: true },
-  seasonalMultipliers: [{ month: Number, multiplier: Number }],
-  totalRooms: { type: Number, default: 0 }
-}, { timestamps: true });
+const Hotel = sequelize.define('Hotel', {
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false,
+  },
+  address: DataTypes.STRING,
+  contact: DataTypes.STRING,
+});
 
-export default mongoose.model('Hotel', hotelSchema);
+export default Hotel;

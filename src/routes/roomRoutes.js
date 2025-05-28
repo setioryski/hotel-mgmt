@@ -1,34 +1,32 @@
 import express from 'express';
 import { protect, authorize } from '../middlewares/auth.js';
-import { body, query } from 'express-validator';
 import * as ctrl from '../controllers/roomController.js';
+import { body, query, param } from 'express-validator';
 
 const router = express.Router();
-
-// all room routes require authentication + admin role
 router.use(protect, authorize('admin'));
 
-// GET /api/rooms?hotel=<hotelId>  → list rooms, optionally filtered by hotel
 router.get(
   '/',
-  [ query('hotel').optional().isMongoId().withMessage('Invalid hotel ID') ],
+  [ query('hotel').optional().isString().withMessage('Invalid hotel ID') ],
   ctrl.getRooms
 );
 
-// POST /api/rooms  → create new room
 router.post(
   '/',
   [
     body('number').notEmpty().withMessage('Room number is required'),
-    body('hotel').isMongoId().withMessage('Hotel ID must be a valid Mongo ID')
+    body('hotel').notEmpty().withMessage('Hotel ID is required'),
+    body('priceOverride').optional().isNumeric(),
+    body('status').optional().isIn(['available', 'maintenance']),
+    body('type').optional().isIn(['standard', 'deluxe', 'suite'])
   ],
   ctrl.createRoom
 );
 
-// GET, PUT, DELETE a specific room by ID
 router.route('/:id')
-  .get(ctrl.getRoom)
-  .put(ctrl.updateRoom)
-  .delete(ctrl.deleteRoom);
+  .get([ param('id').isString() ], ctrl.getRoom)
+  .put([ param('id').isString() ], ctrl.updateRoom)
+  .delete([ param('id').isString() ], ctrl.deleteRoom);
 
 export default router;

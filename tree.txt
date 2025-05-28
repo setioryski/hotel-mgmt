@@ -19,7 +19,7 @@
 │   │   ├── CalendarScheduler.jsx
 │   │   └── index.jsx
 │   ├── config
-│   │   └── db.js
+│   │   └── sequelize.js
 │   ├── controllers
 │   │   ├── authController.js
 │   │   ├── bookingController.js

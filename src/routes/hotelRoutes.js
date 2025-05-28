@@ -1,21 +1,24 @@
 import express from 'express';
 import { protect, authorize } from '../middlewares/auth.js';
 import * as ctrl from '../controllers/hotelController.js';
-import { body } from 'express-validator';
+import { body, param } from 'express-validator';
 
 const router = express.Router();
 router.use(protect, authorize('admin'));
 
 router.route('/')
+  .get(ctrl.getHotels)
   .post(
-    [ body('name').exists(), body('basePrice').isNumeric() ],
+    [
+      body('name').notEmpty().withMessage('Name is required'),
+      body('basePrice').isNumeric()
+    ],
     ctrl.createHotel
-  )
-  .get(ctrl.getHotels);
+  );
 
 router.route('/:id')
-  .get(ctrl.getHotel)
-  .put(ctrl.updateHotel)
-  .delete(ctrl.deleteHotel);
+  .get([ param('id').isString() ], ctrl.getHotel)
+  .put([ param('id').isString() ], ctrl.updateHotel)
+  .delete([ param('id').isString() ], ctrl.deleteHotel);
 
 export default router;

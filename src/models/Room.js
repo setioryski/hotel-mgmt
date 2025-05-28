@@ -1,33 +1,18 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/sequelize.js';
+import Hotel from './Hotel.js';
 
-const roomSchema = new mongoose.Schema({
-  number: {
-    type: String,
-    required: true,
-    index: true
-  },
-  type: {
-    type: String,
-    enum: ['standard','deluxe','suite'],
-    default: 'standard'
-  },
-  priceOverride: {
-    type: Number,
-    default: 0
-  },
+const Room = sequelize.define('Room', {
+  number: DataTypes.STRING,
+  type: DataTypes.STRING,
+  price: DataTypes.DECIMAL(10, 2),
   status: {
-    type: String,
-    enum: ['available','maintenance'],
-    default: 'available'
+    type: DataTypes.ENUM('available', 'booked'),
+    defaultValue: 'available',
   },
-  hotel: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Hotel',
-    required: true
-  }
-}, { timestamps: true });
+});
 
-// ensure fast lookup by hotel + number if needed
-roomSchema.index({ hotel: 1, number: 1 });
+Room.belongsTo(Hotel);
+Hotel.hasMany(Room);
 
-export default mongoose.model('Room', roomSchema);
+export default Room;

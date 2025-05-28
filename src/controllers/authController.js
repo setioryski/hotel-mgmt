@@ -2,6 +2,7 @@ import User from '../models/User.js';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';
+
 dotenv.config();
 
 const { JWT_SECRET, JWT_EXPIRES_IN } = process.env;
@@ -13,19 +14,25 @@ export const registerGuest = async (req, res, next) => {
     const hash = await bcrypt.hash(password, 10);
     await User.create({ name, email, password: hash, role: 'guest' });
     res.status(201).json({ msg: 'Registered' });
-  } catch (err) { next(err); }
+  } catch (err) {
+    next(err);
+  }
 };
 
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ where: { email } });
+
     if (!user || !(await bcrypt.compare(password, user.password))) {
       return res.status(401).json({ msg: 'Invalid credentials' });
     }
-    const token = jwt.sign({ id: user._id, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+
+    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, {
+      expiresIn: JWT_EXPIRES_IN
+    });
+
     const maxAgeMs = cookieMaxAge(parseInt(JWT_EXPIRES_IN, 10));
-    // Primary auth token
     res.cookie('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -33,7 +40,7 @@ export const login = async (req, res, next) => {
       path: '/',
       maxAge: maxAgeMs
     });
-    // For view flow: simple logged-in flag and role
+
     res.cookie('loggedIn', 'true', {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
@@ -41,6 +48,7 @@ export const login = async (req, res, next) => {
       path: '/',
       maxAge: maxAgeMs
     });
+
     res.cookie('role', user.role, {
       httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
@@ -48,11 +56,18 @@ export const login = async (req, res, next) => {
       path: '/',
       maxAge: maxAgeMs
     });
-    res.json({ token });
+
+    // Redirect based on role
+    if (user.role === 'admin') {
+      return res.redirect('/admin/dashboard');
+    } else {
+      return res.redirect('/');
+    }
   } catch (err) {
     next(err);
   }
 };
+
 
 export const logout = (req, res) => {
   res.clearCookie('token', { path: '/' });

@@ -1,139 +1,54 @@
-// public/js/calendar.js
-console.log('📅 calendar.js loaded');
-
-// helper to include JWT from localStorage on every request
-function authFetch(url, opts = {}) {
-  const token = localStorage.getItem('token');
-  opts.headers = Object.assign({
-    'Content-Type': 'application/json',
-    'Authorization': 'Bearer ' + token
-  }, opts.headers);
-  opts.credentials = 'include';
-  return fetch(url, opts);
-}
-
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('DOM ready — initializing calendar…');
+  const calendarEl = document.getElementById('calendar');
+  if (!calendarEl) return;
 
-  const hotelSelect = document.getElementById('hotel-select');
-  const calendarEl  = document.getElementById('calendar');
-  let calendar;
+  const hotels = await fetchJSON('/api/hotels').then(res => res.json());
+  const bookings = await fetchJSON('/api/bookings').then(res => res.json());
 
-  // 1️⃣ Load hotels into dropdown
-  const hotels = await authFetch('/api/hotels').then(r => r.json());
-  hotels.forEach(h => {
-    const opt = document.createElement('option');
-    opt.value       = h._id;
-    opt.textContent = h.name;
-    hotelSelect.appendChild(opt);
-  });
+  calendarEl.innerHTML = '<h2 class="text-xl font-bold mb-4">Bookings</h2>';
 
-  // 2️⃣ Initialize calendar on first hotel
-  if (hotels.length) initCalendar(hotels[0]._id);
+  hotels.forEach(hotel => {
+    const section = document.createElement('div');
+    section.className = 'mb-6';
+    section.innerHTML = `<h3 class="text-lg font-semibold mb-2">${hotel.name}</h3>`;
 
-  // 3️⃣ Switch calendar when hotel changes
-  hotelSelect.addEventListener('change', () => initCalendar(hotelSelect.value));
+    const table = document.createElement('table');
+    table.className = 'min-w-full bg-white rounded shadow';
+    table.innerHTML = `
+      <thead>
+        <tr class="bg-gray-200">
+          <th class="px-4 py-2">Room</th>
+          <th class="px-4 py-2">Guest</th>
+          <th class="px-4 py-2">Check-In</th>
+          <th class="px-4 py-2">Check-Out</th>
+          <th class="px-4 py-2">Status</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    `;
 
-  // Calendar setup function
-  function initCalendar(hotelId) {
-    if (calendar) calendar.destroy();
+    const tbody = table.querySelector('tbody');
 
-    calendar = new FullCalendar.Calendar(calendarEl, {
-      // using Scheduler bundle auto-registration—no explicit plugins needed
-      initialView: 'resourceTimelineMonth',
-      resourceAreaHeaderContent: 'Rooms',
-      height: 'auto',
-      headerToolbar: {
-        left:  'prev,next today',
-        center:'title',
-        right: 'resourceTimelineDay,resourceTimelineWeek,resourceTimelineMonth'
-      },
-      views: {
-        resourceTimelineDay:   { buttonText: 'Day' },
-        resourceTimelineWeek:  { buttonText: 'Week' },
-        resourceTimelineMonth: { buttonText: 'Month' }
-      },
-
-      // fetch rooms as resources
-      resources: async (fetchInfo, success, failure) => {
-        try {
-          const rooms = await authFetch(`/api/rooms?hotel=${hotelId}`).then(r => r.json());
-          success(rooms.map(r => ({
-            id:    r._id,
-            title: `${r.number} (${r.type})`
-          })));
-        } catch (e) {
-          failure(e);
-        }
-      },
-
-      // fetch bookings as events
-      events: {
-        url:    `/api/bookings?hotel=${hotelId}`,
-        method: 'GET',
-        failure: () => alert('Could not load bookings')
-      },
-
-      selectable: true,
-      editable:   true,
-
-      // create new booking on select
-      select: info => {
-        const guestEmail = prompt('Guest email:');
-        if (!guestEmail) {
-          calendar.unselect();
-          return;
-        }
-        authFetch('/api/bookings', {
-          method: 'POST',
-          body: JSON.stringify({
-            room:      info.resource.id,
-            guestEmail,
-            startDate: info.startStr,
-            endDate:   info.endStr
-          })
-        })
-        .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-        .then(() => calendar.refetchEvents())
-        .catch(err => {
-          alert(err.msg || err.message || 'Booking failed');
-          calendar.refetchEvents();
-        });
-      },
-
-      // move or resize bookings
-      eventDrop:   info => updateBooking(info.event),
-      eventResize: info => updateBooking(info.event),
-
-      // cancel booking on click
-      eventClick: info => {
-        if (!confirm('Cancel this booking?')) return;
-        authFetch(`/api/bookings/${info.event.id}`, { method: 'DELETE' })
-          .then(r => r.ok ? r.json() : r.json().then(e => Promise.reject(e)))
-          .then(() => info.event.remove())
-          .catch(err => alert(err.msg || err.message || 'Cancel failed'));
-      }
+    const hotelBookings = bookings.filter(b => b.hotelId === hotel.id);
+    hotelBookings.forEach(b => {
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td class="border px-4 py-2">${b.room}</td>
+        <td class="border px-4 py-2">${b.title}</td>
+        <td class="border px-4 py-2">${new Date(b.start).toLocaleDateString()}</td>
+        <td class="border px-4 py-2">${new Date(b.end).toLocaleDateString()}</td>
+        <td class="border px-4 py-2">${b.status}</td>
+      `;
+      tbody.appendChild(row);
     });
 
-    calendar.render();
-
-    // helper to persist date changes
-    function updateBooking(event) {
-      authFetch(`/api/bookings/${event.id}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          startDate: event.startStr,
-          endDate:   event.endStr
-        })
-      })
-      .then(r => {
-        if (!r.ok) return r.json().then(e => Promise.reject(e));
-        return r.json();
-      })
-      .catch(err => {
-        alert(err.msg || err.message || 'Update failed');
-        event.revert();
-      });
-    }
-  }
+    section.appendChild(table);
+    calendarEl.appendChild(section);
+  });
 });
+
+async function fetchJSON(url) {
+  const res = await fetch(url, { credentials: 'include' });
+  if (!res.ok) throw new Error('Failed to fetch ' + url);
+  return res.json();
+}

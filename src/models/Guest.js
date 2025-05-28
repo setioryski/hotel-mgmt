@@ -1,10 +1,10 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/sequelize.js';
 
-const guestSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  phone: String,
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-}, { timestamps: true });
+const Guest = sequelize.define('Guest', {
+  name: DataTypes.STRING,
+  email: DataTypes.STRING,
+  phone: DataTypes.STRING,
+});
 
-export default mongoose.model('Guest', guestSchema);
+export default Guest;

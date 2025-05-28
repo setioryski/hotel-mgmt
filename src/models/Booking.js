@@ -1,36 +1,26 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/sequelize.js';
+import Room from './Room.js';
+import Guest from './Guest.js';
 
-const bookingSchema = new mongoose.Schema({
-  room: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Room',
-    required: true
-  },
-  guest: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Guest',
-    required: true
-  },
+const Booking = sequelize.define('Booking', {
   startDate: {
-    type: Date,
-    required: true
+    type: DataTypes.DATE,
+    allowNull: false,
   },
   endDate: {
-    type: Date,
-    required: true
+    type: DataTypes.DATE,
+    allowNull: false,
   },
   status: {
-    type: String,
-    enum: ['confirmed','cancelled','completed'],
-    default: 'confirmed'
+    type: DataTypes.STRING,
+    defaultValue: 'confirmed',
   },
-  price: {
-    type: Number,
-    required: true
-  }
-}, { timestamps: true });
+});
 
-// prevent overlapping bookings on same room
-bookingSchema.index({ room: 1, startDate: 1, endDate: 1 });
+Booking.belongsTo(Room);
+Booking.belongsTo(Guest);
+Room.hasMany(Booking);
+Guest.hasMany(Booking);
 
-export default mongoose.model('Booking', bookingSchema);
+export default Booking;
