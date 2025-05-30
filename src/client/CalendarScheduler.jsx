@@ -83,21 +83,16 @@ export default function CalendarScheduler() {
           name: `Room ${r.number} (${r.type})`
         }));
 
-        // Map bookings to scheduler events, offset by 30 minutes
-        const eventList = bookings.map(b => {
-          const startTime = moment(b.start).add(30, 'minutes');
-          const endTime = moment(b.end).subtract(30, 'minutes');
-          return {
-            id: b.id,
-            resourceId: b.resourceId,
-            title: b.title,
-            start: startTime.format(DATE_FORMAT),
-            end: endTime.format(DATE_FORMAT),
-            bgColor: b.bgColor
-          };
-        });
+        // Map bookings to scheduler events, enforcing 12:00 PM start & end
+        const eventList = bookings.map(b => ({
+          id: b.id,
+          resourceId: b.resourceId,
+          title: b.title,
+          start: moment(b.start).format(DATE_FORMAT),
+          end: moment(b.end).format(DATE_FORMAT),
+          bgColor: b.bgColor
+        }));
 
-        // Feed data into scheduler
         const sd = schedulerData;
         sd.setResources(resourceList);
         sd.setEvents(eventList);
@@ -121,15 +116,15 @@ export default function CalendarScheduler() {
     setBookingModalVisible(true);
   };
 
-  // Submit new booking with 12:30 check-in and 11:30 check-out
+  // Submit new booking with 12:00 PM check-in & 12:00 PM check-out
   const handleBookingSubmit = async e => {
     e.preventDefault();
     setFormError('');
     if (!selectedRoom) return setFormError('Please select a room.');
     if (!selectedGuest) return setFormError('Please select a guest.');
 
-    const startDateTime = `${bookingStart}T12:30:00`;
-    const endDateTime = `${bookingEnd}T11:30:00`;
+    const startDateTime = `${bookingStart}T12:00:00`;
+    const endDateTime = `${bookingEnd}T12:00:00`;
     if (new Date(startDateTime) >= new Date(endDateTime)) {
       return setFormError('Check-out must be after check-in.');
     }
@@ -229,7 +224,8 @@ export default function CalendarScheduler() {
               <div>
                 <label className="block font-medium">Guest:</label>
                 <select
-                  className="w-full border px-2 py-1 rounded"
+                  className="w-full border px-2 py-1
+rounded"
                   value={selectedGuest}
                   onChange={e => setSelectedGuest(e.target.value)}
                 >
