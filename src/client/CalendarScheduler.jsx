@@ -1,9 +1,13 @@
+// src/client/CalendarScheduler.jsx
+
 import React, { useEffect, useState } from 'react';
 import Scheduler, { SchedulerData, ViewTypes, DATE_FORMAT } from 'react-big-scheduler';
 import moment from 'moment';
+import { DragDropContext } from 'react-dnd';
+import HTML5Backend from 'react-dnd-html5-backend';
 import 'react-big-scheduler/lib/css/style.css';
 
-export default function CalendarScheduler() {
+function CalendarScheduler() {
   // Scheduler state with 30-minute granularity
   const [schedulerData, setSchedulerData] = useState(
     new SchedulerData(
@@ -82,8 +86,7 @@ export default function CalendarScheduler() {
           id: r.id,
           name: `Room ${r.number} (${r.type})`
         }));
-
-        // Map bookings to scheduler events, enforcing 12:00 PM start & end
+        // Map bookings to scheduler events
         const eventList = bookings.map(b => ({
           id: b.id,
           resourceId: b.resourceId,
@@ -105,18 +108,19 @@ export default function CalendarScheduler() {
 
   useEffect(loadData, [selectedHotel]);
 
-  // Open booking modal on empty slot click
-  const onSelectSlot = slot => {
-    const date = moment(slot.start).format('YYYY-MM-DD');
-    setSelectedRoom(slot.resourceId);
-    setBookingStart(date);
-    setBookingEnd(moment(slot.start).add(1, 'days').format('YYYY-MM-DD'));
+  // Open booking modal on empty slot click, with correct signature
+  const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
+    const startDate = moment(start).format('YYYY-MM-DD');
+    const endDate = moment(end).format('YYYY-MM-DD');
+    setSelectedRoom(slotId);
+    setBookingStart(startDate);
+    setBookingEnd(endDate);
     setSelectedGuest('');
     setFormError('');
     setBookingModalVisible(true);
   };
 
-  // Submit new booking with 12:00 PM check-in & 12:00 PM check-out
+  // Submit new booking with 12:00 PM check-in & check-out times
   const handleBookingSubmit = async e => {
     e.preventDefault();
     setFormError('');
@@ -132,7 +136,12 @@ export default function CalendarScheduler() {
     try {
       await fetchJSON('/api/bookings', {
         method: 'POST',
-        body: JSON.stringify({ room: selectedRoom, guest: selectedGuest, startDate: startDateTime, endDate: endDateTime })
+        body: JSON.stringify({
+          room: selectedRoom,
+          guest: selectedGuest,
+          startDate: startDateTime,
+          endDate: endDateTime
+        })
       });
       setBookingModalVisible(false);
       loadData();
@@ -146,12 +155,17 @@ export default function CalendarScheduler() {
 
   // Update and cancel booking handlers
   const updateBooking = (id, body) =>
-    fetchJSON(`/api/bookings/${id}`, { method: 'PUT', body: JSON.stringify(body) })
+    fetchJSON(`/api/bookings/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body)
+    })
       .then(loadData)
       .catch(err => console.error('Booking update failed:', err));
 
-  const onEventMove = (ev, slotId, start, end) => updateBooking(ev.id, { room: slotId, startDate: start, endDate: end });
-  const onEventResize = (ev, slotId, start, end) => updateBooking(ev.id, { startDate: start, endDate: end });
+  const onEventMove = (ev, slotId, start, end) =>
+    updateBooking(ev.id, { room: slotId, startDate: start, endDate: end });
+  const onEventResize = (ev, slotId, start, end) =>
+    updateBooking(ev.id, { startDate: start, endDate: end });
   const onEventClick = ev => {
     if (!window.confirm('Cancel this booking?')) return;
     fetchJSON(`/api/bookings/${ev.id}`, { method: 'DELETE' })
@@ -159,12 +173,11 @@ export default function CalendarScheduler() {
       .catch(err => console.error('Booking cancellation failed:', err));
   };
 
-  // Scheduler callbacks
+  // Scheduler callbacks for view and date changes
   const onViewChange = newView => {
     schedulerData.setViewType(+newView.viewType, newView.showAgenda, +newView.isEventPerspective);
     setSchedulerData(schedulerData);
   };
-
   const onSelectDate = date => {
     schedulerData.setDate(date);
     setSchedulerData(schedulerData);
@@ -224,8 +237,7 @@ export default function CalendarScheduler() {
               <div>
                 <label className="block font-medium">Guest:</label>
                 <select
-                  className="w-full border px-2 py-1
-rounded"
+                  className="w-full border px-2 py-1 rounded"
                   value={selectedGuest}
                   onChange={e => setSelectedGuest(e.target.value)}
                 >
@@ -261,11 +273,15 @@ rounded"
                   type="button"
                   onClick={closeModal}
                   className="px-4 py-2 rounded border"
-                >Cancel</button>
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   className="bg-blue-600 text-white px-4 py-2 rounded"
-                >Book</button>
+                >
+                  Book
+                </button>
               </div>
             </form>
           </div>
@@ -274,3 +290,6 @@ rounded"
     </div>
   );
 }
+
+// Wrap your scheduler in the DnD context and export
+export default DragDropContext(HTML5Backend)(CalendarScheduler);
