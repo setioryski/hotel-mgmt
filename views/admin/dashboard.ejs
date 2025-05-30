@@ -1,12 +1,44 @@
-% title = 'Admin Dashboard' %>
+<% title = 'Admin Dashboard' %>
+
+<div class="flex justify-end mb-4">
+  <button
+    id="logoutBtn"
+    class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+  >
+    Logout
+  </button>
+</div>
 
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
   <a href="/admin/hotels" class="bg-white p-6 rounded shadow hover:shadow-md">
     <h2 class="text-lg font-semibold">Hotels</h2>
     <p class="text-blue-600 mt-2">Manage Hotels →</p>
   </a>
+  <a href="/admin/rooms" class="bg-white p-6 rounded shadow hover:shadow-md">
+    <h2 class="text-lg font-semibold">Rooms</h2>
+    <p class="text-blue-600 mt-2">Manage Rooms →</p>
+  </a>
+  <a href="/admin/guests" class="bg-white p-6 rounded shadow hover:shadow-md">
+    <h2 class="text-lg font-semibold">Guests</h2>
+    <p class="text-blue-600 mt-2">Manage Guests →</p>
+  </a>
   <a href="/admin/calendar" class="bg-white p-6 rounded shadow hover:shadow-md">
     <h2 class="text-lg font-semibold">Bookings</h2>
     <p class="text-blue-600 mt-2">View Calendar →</p>
   </a>
 </div>
+
+<script>
+  // Call your logout endpoint (which clears the token cookie) then redirect to login
+  document.getElementById('logoutBtn').addEventListener('click', async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+      window.location.href = '/login';
+    } catch (err) {
+      console.error('Logout failed:', err);
+    }
+  });
+</script>

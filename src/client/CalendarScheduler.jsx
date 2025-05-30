@@ -4,9 +4,15 @@ import moment from 'moment';
 import 'react-big-scheduler/lib/css/style.css';
 
 export default function CalendarScheduler() {
-  // Scheduler state
+  // Scheduler state with 30-minute granularity
   const [schedulerData, setSchedulerData] = useState(
-    new SchedulerData(moment().format(DATE_FORMAT), ViewTypes.Month)
+    new SchedulerData(
+      moment().format(DATE_FORMAT),
+      ViewTypes.Month,
+      false,
+      false,
+      { minuteStep: 30 }
+    )
   );
   const [resources, setResources] = useState([]);
   const [events, setEvents] = useState([]);
@@ -20,7 +26,6 @@ export default function CalendarScheduler() {
 
   // Booking modal state
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
-  const [newBookingSlot, setNewBookingSlot] = useState(null);
 
   // Form fields
   const [selectedRoom, setSelectedRoom] = useState('');
@@ -29,14 +34,13 @@ export default function CalendarScheduler() {
   const [bookingEnd, setBookingEnd] = useState('');
   const [formError, setFormError] = useState('');
 
-  // Helper to fetch JSON and show validation errors
+  // Generic JSON fetch helper
   const fetchJSON = async (url, opts = {}) => {
     const res = await fetch(url, {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       ...opts
     });
-
     const data = await res.json();
     if (!res.ok) {
       const msg =
@@ -53,7 +57,7 @@ export default function CalendarScheduler() {
     fetchJSON('/api/hotels')
       .then(data => {
         setHotels(data);
-        if (data.length) setSelectedHotel(data[0]._id);
+        if (data.length) setSelectedHotel(data[0].id);
       })
       .catch(err => console.error('Failed to load hotels:', err));
   }, []);
@@ -65,7 +69,7 @@ export default function CalendarScheduler() {
       .catch(err => console.error('Failed to load guests:', err));
   }, []);
 
-  // Load rooms + bookings when hotel changes
+  // Fetch rooms & bookings when hotel changes
   const loadData = () => {
     if (!selectedHotel) return;
     Promise.all([
@@ -73,39 +77,42 @@ export default function CalendarScheduler() {
       fetchJSON(`/api/bookings?hotel=${selectedHotel}`)
     ])
       .then(([rooms, bookings]) => {
+        // Map rooms to scheduler resources
         const resourceList = rooms.map(r => ({
-          id:   r._id,
+          id: r.id,
           name: `Room ${r.number} (${r.type})`
         }));
-        const eventList = bookings.map(b => ({
-          id:         b.id || b._id,
-          resourceId: b.resourceId || b.room,
-          title:      b.title,
-          start:      moment(b.start).format('YYYY-MM-DD HH:mm'),
-          end:        moment(b.end).format('YYYY-MM-DD HH:mm'),
-          bgColor:    b.bgColor
-        }));
 
-        const newSD = new SchedulerData(
-          schedulerData.startDate,
-          schedulerData.viewType
-        );
-        newSD.setResources(resourceList);
-        newSD.setEvents(eventList);
+        // Map bookings to scheduler events, offset by 30 minutes
+        const eventList = bookings.map(b => {
+          const startTime = moment(b.start).add(30, 'minutes');
+          const endTime = moment(b.end).subtract(30, 'minutes');
+          return {
+            id: b.id,
+            resourceId: b.resourceId,
+            title: b.title,
+            start: startTime.format(DATE_FORMAT),
+            end: endTime.format(DATE_FORMAT),
+            bgColor: b.bgColor
+          };
+        });
 
+        // Feed data into scheduler
+        const sd = schedulerData;
+        sd.setResources(resourceList);
+        sd.setEvents(eventList);
         setResources(resourceList);
         setEvents(eventList);
-        setSchedulerData(newSD);
+        setSchedulerData(sd);
       })
       .catch(err => console.error('Failed to load data:', err));
   };
 
   useEffect(loadData, [selectedHotel]);
 
-  // Open booking modal
+  // Open booking modal on empty slot click
   const onSelectSlot = slot => {
     const date = moment(slot.start).format('YYYY-MM-DD');
-    setNewBookingSlot(slot);
     setSelectedRoom(slot.resourceId);
     setBookingStart(date);
     setBookingEnd(moment(slot.start).add(1, 'days').format('YYYY-MM-DD'));
@@ -114,37 +121,23 @@ export default function CalendarScheduler() {
     setBookingModalVisible(true);
   };
 
-  // Submit new booking
+  // Submit new booking with 12:30 check-in and 11:30 check-out
   const handleBookingSubmit = async e => {
     e.preventDefault();
     setFormError('');
-    if (!selectedRoom) {
-      setFormError('Please select a room.');
-      return;
-    }
-    if (!selectedGuest) {
-      setFormError('Please select a guest.');
-      return;
-    }
+    if (!selectedRoom) return setFormError('Please select a room.');
+    if (!selectedGuest) return setFormError('Please select a guest.');
 
-    const startDateTime = `${bookingStart}T12:00:00`;
-    const endDateTime   = `${bookingEnd}T12:00:00`;
+    const startDateTime = `${bookingStart}T12:30:00`;
+    const endDateTime = `${bookingEnd}T11:30:00`;
     if (new Date(startDateTime) >= new Date(endDateTime)) {
-      setFormError('Check-out must be after check-in.');
-      return;
+      return setFormError('Check-out must be after check-in.');
     }
-
-    console.log('Creating booking payload:', {
-      room:      selectedRoom,
-      guest:     selectedGuest,
-      startDate: startDateTime,
-      endDate:   endDateTime
-    });
 
     try {
       await fetchJSON('/api/bookings', {
         method: 'POST',
-        body:   JSON.stringify({ room: selectedRoom, guest: selectedGuest, startDate: startDateTime, endDate: endDateTime })
+        body: JSON.stringify({ room: selectedRoom, guest: selectedGuest, startDate: startDateTime, endDate: endDateTime })
       });
       setBookingModalVisible(false);
       loadData();
@@ -156,53 +149,55 @@ export default function CalendarScheduler() {
 
   const closeModal = () => setBookingModalVisible(false);
 
-  // Update or cancel…
+  // Update and cancel booking handlers
   const updateBooking = (id, body) =>
     fetchJSON(`/api/bookings/${id}`, { method: 'PUT', body: JSON.stringify(body) })
       .then(loadData)
       .catch(err => console.error('Booking update failed:', err));
 
-  const onEventMove   = (ev, slotId, start, end) => updateBooking(ev.id, { room: slotId, startDate: start, endDate: end });
+  const onEventMove = (ev, slotId, start, end) => updateBooking(ev.id, { room: slotId, startDate: start, endDate: end });
   const onEventResize = (ev, slotId, start, end) => updateBooking(ev.id, { startDate: start, endDate: end });
-  const onEventClick  = ev => {
+  const onEventClick = ev => {
     if (!window.confirm('Cancel this booking?')) return;
     fetchJSON(`/api/bookings/${ev.id}`, { method: 'DELETE' })
       .then(loadData)
       .catch(err => console.error('Booking cancellation failed:', err));
   };
 
+  // Scheduler callbacks
+  const onViewChange = newView => {
+    schedulerData.setViewType(+newView.viewType, newView.showAgenda, +newView.isEventPerspective);
+    setSchedulerData(schedulerData);
+  };
+
+  const onSelectDate = date => {
+    schedulerData.setDate(date);
+    setSchedulerData(schedulerData);
+  };
+
   return (
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">Booking Calendar</h1>
+
       <div className="mb-4">
         <label className="mr-2 font-semibold">Select Hotel:</label>
         <select
+          className="border px-2 py-1 rounded"
           value={selectedHotel || ''}
           onChange={e => setSelectedHotel(e.target.value)}
-          className="border px-2 py-1 rounded"
         >
           {hotels.map(h => (
-            <option key={h._id} value={h._id}>{h.name}</option>
+            <option key={h.id} value={h.id}>{h.name}</option>
           ))}
         </select>
       </div>
 
       <Scheduler
         schedulerData={schedulerData}
-        prevClick={schedulerData.prev}
-        nextClick={schedulerData.next}
-        onSelectDate={schedulerData.setDate}
-        onViewChange={v => {
-          const newSD = new SchedulerData(
-            schedulerData.startDate,
-            v.viewType,
-            false,
-            v.isEventPerspective
-          );
-          newSD.setResources(resources);
-          newSD.setEvents(events);
-          setSchedulerData(newSD);
-        }}
+        resources={resources}
+        events={events}
+        onViewChange={onViewChange}
+        onSelectDate={onSelectDate}
         eventItemClick={onEventClick}
         moveEvent={onEventMove}
         newEvent={onSelectSlot}
@@ -210,6 +205,7 @@ export default function CalendarScheduler() {
         updateEventEnd={onEventResize}
       />
 
+      {/* Booking Modal */}
       {bookingModalVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white p-6 rounded shadow w-96">
@@ -219,9 +215,9 @@ export default function CalendarScheduler() {
               <div>
                 <label className="block font-medium">Room:</label>
                 <select
+                  className="w-full border px-2 py-1 rounded"
                   value={selectedRoom}
                   onChange={e => setSelectedRoom(e.target.value)}
-                  className="w-full border px-2 py-1 rounded"
                 >
                   <option value="">— Select Room —</option>
                   {resources.map(r => (
@@ -229,44 +225,51 @@ export default function CalendarScheduler() {
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="block font-medium">Guest:</label>
                 <select
+                  className="w-full border px-2 py-1 rounded"
                   value={selectedGuest}
                   onChange={e => setSelectedGuest(e.target.value)}
-                  className="w-full border px-2 py-1 rounded"
                 >
                   <option value="">— Select Guest —</option>
                   {guests.map(g => (
-                    <option key={g._id} value={g._id}>{g.name} ({g.email})</option>
+                    <option key={g.id} value={g.id}>{g.name} ({g.email})</option>
                   ))}
                 </select>
               </div>
+
               <div>
                 <label className="block font-medium">Check-In:</label>
                 <input
                   type="date"
+                  className="w-full border px-2 py-1 rounded"
                   value={bookingStart}
                   onChange={e => setBookingStart(e.target.value)}
-                  className="w-full border px-2 py-1 rounded"
                 />
               </div>
+
               <div>
                 <label className="block font-medium">Check-Out:</label>
                 <input
                   type="date"
+                  className="w-full border px-2 py-1 rounded"
                   value={bookingEnd}
                   onChange={e => setBookingEnd(e.target.value)}
-                  className="w-full border px-2 py-1 rounded"
                 />
               </div>
+
               <div className="flex justify-end space-x-2">
-                <button type="button" onClick={closeModal} className="px-4 py-2 rounded border">
-                  Cancel
-                </button>
-                <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
-                  Book
-                </button>
+                <button
+                  type="button"
+                  onClick={closeModal}
+                  className="px-4 py-2 rounded border"
+                >Cancel</button>
+                <button
+                  type="submit"
+                  className="bg-blue-600 text-white px-4 py-2 rounded"
+                >Book</button>
               </div>
             </form>
           </div>
