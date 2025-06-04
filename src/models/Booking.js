@@ -1,3 +1,5 @@
+// src/models/Booking.js
+
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/sequelize.js';
 import Room from './Room.js';
@@ -15,6 +17,10 @@ const Booking = sequelize.define('Booking', {
   status: {
     type: DataTypes.STRING,
     defaultValue: 'confirmed',
+  },
+  guestStatus: {
+    type: DataTypes.ENUM('pending', 'checked_in', 'checked_out'),
+    defaultValue: 'pending',
   },
 });
 

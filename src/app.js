@@ -8,18 +8,31 @@ import expressLayouts from 'express-ejs-layouts';
 import { fileURLToPath } from 'url';
 
 import sequelize from './config/sequelize.js';
+
+// Import all models so that associations are registered before sync:
+import Hotel from './models/Hotel.js';
+import Room from './models/Room.js';
+import Guest from './models/Guest.js';
+import User from './models/User.js';
+import Booking from './models/Booking.js';
+import RoomBlock from './models/RoomBlock.js';      // <-- new
+// Note: Hotel, Room, Guest, User, Booking are already being imported in their controllers/models.
+// By importing RoomBlock here, Sequelize knows about the associations on sync.
+
 import authRoutes from './routes/authRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import guestRoutes from './routes/guestRoutes.js';
 import hotelRoutes from './routes/hotelRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
+import blockRoutes from './routes/blockRoutes.js'; // <-- new
+
 import errorHandler from './middlewares/errorHandler.js';
 
 dotenv.config();
 
 const app = express();
 
-// Sync database
+// Sync database (creates tables / applies associations)
 await sequelize.sync({ alter: true });
 console.log('✅ Sequelize connected and synced');
 
@@ -30,9 +43,8 @@ app.use(cookieParser());
 
 // Serve static assets
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, '../public')));
-
 
 // EJS + layouts
 app.set('views', path.join(__dirname, '../views'));
@@ -46,6 +58,7 @@ app.use('/api/bookings', bookingRoutes);
 app.use('/api/guests',   guestRoutes);
 app.use('/api/hotels',   hotelRoutes);
 app.use('/api/rooms',    roomRoutes);
+app.use('/api/blocks',   blockRoutes); // <-- new
 
 // Page (EJS) routes – now with explicit titles
 app.get('/', (req, res) =>
@@ -71,8 +84,6 @@ app.get('/login', (req, res) =>
 app.get('/register', (req, res) =>
   res.render('auth/register', { title: 'Register' })
 );
-
-
 
 // Error handler (last)
 app.use(errorHandler);
