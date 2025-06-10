@@ -26,19 +26,15 @@ export const createBooking = async (req, res, next) => {
       bookingStatus = status;
     }
 
-    // 3. Check for overlap, ignoring any bookings with status = 'cancelled'
+    // 3. Check for overlap, ignoring any cancelled bookings.
+    //    Allow new bookings to start exactly on an existing booking's endDate (treated as checkout).
+    //    Overlap if: existing.startDate < newEnd  AND existing.endDate > newStart
     const overlap = await Booking.findOne({
       where: {
         RoomId: room,
         status: { [Op.ne]: 'cancelled' },
-        [Op.or]: [
-          { startDate: { [Op.between]: [startDate, endDate] } },
-          { endDate: { [Op.between]: [startDate, endDate] } },
-          {
-            startDate: { [Op.lte]: startDate },
-            endDate: { [Op.gte]: endDate },
-          },
-        ],
+        startDate: { [Op.lt]: endDate },
+        endDate: { [Op.gt]: startDate },
       },
     });
 
@@ -139,19 +135,14 @@ export const updateBooking = async (req, res, next) => {
       const newStart = startDate !== undefined ? startDate : booking.startDate;
       const newEnd = endDate !== undefined ? endDate : booking.endDate;
 
+      // Overlap logic with endDate exclusive:
       const overlap = await Booking.findOne({
         where: {
           id: { [Op.ne]: booking.id },
           RoomId: newRoomId,
           status: { [Op.ne]: 'cancelled' },
-          [Op.or]: [
-            { startDate: { [Op.between]: [newStart, newEnd] } },
-            { endDate: { [Op.between]: [newStart, newEnd] } },
-            {
-              startDate: { [Op.lte]: newStart },
-              endDate: { [Op.gte]: newEnd },
-            },
-          ],
+          startDate: { [Op.lt]: newEnd },
+          endDate: { [Op.gt]: newStart },
         },
       });
 
