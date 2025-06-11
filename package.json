@@ -30,6 +30,7 @@
     "react-dnd": "^7.7.0",
     "react-dnd-html5-backend": "^7.7.0",
     "react-dom": "^16.14.0",
+    "react-toastify": "^8.2.0",
     "sequelize": "^6.37.7"
   },
   "devDependencies": {
