@@ -1,9 +1,7 @@
+// src/client/hooks/useApi.js
 import { useCallback } from 'react';
 
-/**
- * Simple hook for JSON API calls with credentials + error handling.
- */
-export default function useApi() {
+export const useApi = () => {
   const fetchJSON = useCallback(async (url, opts = {}) => {
     const res = await fetch(url, {
       credentials: 'include',
@@ -20,5 +18,6 @@ export default function useApi() {
     }
     return data;
   }, []);
+
   return { fetchJSON };
-}
+};

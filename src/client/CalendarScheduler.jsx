@@ -1,16 +1,10 @@
 // src/client/CalendarScheduler.jsx
-
-import React, { useEffect, useState, useRef } from 'react';
-import Scheduler, {
-  SchedulerData,
-  ViewTypes,
-  DATE_FORMAT,
-} from 'react-big-scheduler';
+import React, { useState, useEffect, useRef } from 'react';
+import Scheduler, { SchedulerData, ViewTypes, DATE_FORMAT } from 'react-big-scheduler';
 import moment from 'moment';
 import { DragDropContext } from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
 import 'react-big-scheduler/lib/css/style.css';
-
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -29,15 +23,8 @@ const ConfirmModal = ({ visible, title, message, onConfirm, onCancel }) => {
         {title && <h3 className="text-lg font-semibold mb-2">{title}</h3>}
         <p className="mb-4">{message}</p>
         <div className="flex justify-end space-x-2">
-          <button onClick={onCancel} className="px-4 py-2 rounded border">
-            No
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 rounded bg-red-600 text-white"
-          >
-            Yes
-          </button>
+          <button onClick={onCancel} className="px-4 py-2 rounded border">No</button>
+          <button onClick={onConfirm} className="px-4 py-2 rounded bg-red-600 text-white">Yes</button>
         </div>
       </div>
     </div>
@@ -147,7 +134,7 @@ function CalendarScheduler() {
     setConfirmModalVisible(false);
   };
 
-  // Load hotels & guests on mount
+  // Load hotels on mount
   useEffect(() => {
     fetchJSON('/api/hotels')
       .then((data) => {
@@ -156,113 +143,184 @@ function CalendarScheduler() {
       })
       .catch((err) => console.error('Load hotels failed:', err));
   }, []);
+
+  // Load guests on mount
   useEffect(() => {
     fetchJSON('/api/guests')
       .then(setGuests)
       .catch((err) => console.error('Load guests failed:', err));
   }, []);
 
-  // Fetch & normalize rooms/bookings/blocks
-  const loadData = () => {
+  // Fetch & normalize rooms/bookings/blocks when hotel/type changes
+  const loadData = async () => {
     if (!selectedHotel) return;
     setIsLoading(true);
-    Promise.all([
-      fetchJSON(`/api/rooms?hotel=${selectedHotel}`),
-      fetchJSON(`/api/bookings?hotel=${selectedHotel}`),
-      fetchJSON(`/api/blocks?hotel=${selectedHotel}`),
-    ])
-      .then(([roomsResp, bookingsResp, blocksResp]) => {
-        const rooms = Array.isArray(roomsResp)
-          ? roomsResp
-          : roomsResp.data || [];
-        setRoomTypes([...new Set(rooms.map((r) => r.type))].sort());
-        const filteredRooms = rooms.filter(
-          (r) => selectedRoomType === 'all' || r.type === selectedRoomType
-        );
-        const resourceList = filteredRooms.map((r) => ({
-          id: r.id,
-          number: r.number,
-          name: (
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleBlockAll(r.id);
-              }}
-              style={{ cursor: 'pointer', textDecoration: 'underline' }}
-            >{`Room ${r.number} (${r.type})`}</span>
-          ),
-        }));
+    try {
+      const [roomsResp, bookingsResp, blocksResp] = await Promise.all([
+        fetchJSON(`/api/rooms?hotel=${selectedHotel}`),
+        fetchJSON(`/api/bookings?hotel=${selectedHotel}`),
+        fetchJSON(`/api/blocks?hotel=${selectedHotel}`),
+      ]);
 
-        const bookingEvents = (Array.isArray(bookingsResp)
-          ? bookingsResp
-          : bookingsResp.data || []
-        ).map((e) => {
-          let bgColor = '#3B82F6';
-          if (e.status === 'tentative') bgColor = '#FBBF24';
-          else if (e.status === 'checkedin') bgColor = '#10B981';
-          else if (e.status === 'checkedout') bgColor = '#EF4444';
-          return {
-            id: e.id,
-            resourceId: e.resourceId,
-            title: e.title,
-            start: moment(e.start).format(DATE_FORMAT),
-            end: moment(e.end).format(DATE_FORMAT),
-            bgColor,
-            status: e.status,
-            guestId: e.guestId,
-            type: 'booking',
-          };
-        });
+      const rooms = Array.isArray(roomsResp) ? roomsResp : roomsResp.data || [];
+      setRoomTypes(Array.from(new Set(rooms.map((r) => r.type))).sort());
 
-        const blockEvents = (Array.isArray(blocksResp)
-          ? blocksResp
-          : blocksResp.data || []
-        ).map((b) => ({
-          id: b.id,
-          resourceId: b.resourceId,
-          title: b.title || 'Blocked',
-          start: moment(b.start).format(DATE_FORMAT),
-          end: moment(b.end).format(DATE_FORMAT),
-          bgColor: '#999999',
-          type: 'block',
-        }));
+      const filteredRooms = rooms.filter(
+        (r) => selectedRoomType === 'all' || r.type === selectedRoomType
+      );
+      const resourceList = filteredRooms.map((r) => ({
+        id: r.id,
+        number: r.number,
+        name: (
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleBlockAll(r.id);
+            }}
+            style={{ cursor: 'pointer', textDecoration: 'underline' }}
+          >{`Room ${r.number} (${r.type})`}</span>
+        ),
+      }));
 
-        const sd = schedulerData;
-        sd.setResources(resourceList);
-        sd.setEvents([...bookingEvents, ...blockEvents]);
-        setResources(resourceList);
-        setEvents([...bookingEvents, ...blockEvents]);
-        setSchedulerData(sd);
-        setIsLoading(false);
-      })
-      .catch((err) => {
-        console.error('Load data failed:', err);
-        setIsLoading(false);
+      const bookingEvents = (Array.isArray(bookingsResp)
+        ? bookingsResp
+        : bookingsResp.data || []
+      ).map((e) => {
+        let bgColor = '#3B82F6';
+        if (e.status === 'tentative') bgColor = '#FBBF24';
+        else if (e.status === 'checkedin') bgColor = '#10B981';
+        else if (e.status === 'checkedout') bgColor = '#EF4444';
+        return {
+          id: e.id,
+          resourceId: e.resourceId,
+          title: e.title,
+          start: moment(e.start).format(DATE_FORMAT),
+          end: moment(e.end).format(DATE_FORMAT),
+          bgColor,
+          status: e.status,
+          guestId: e.guestId,
+          type: 'booking',
+        };
       });
+
+      const blockEvents = (Array.isArray(blocksResp)
+        ? blocksResp
+        : blocksResp.data || []
+      ).map((b) => ({
+        id: b.id,
+        resourceId: b.resourceId,
+        title: b.title || 'Blocked',
+        start: moment(b.start).format(DATE_FORMAT),
+        end: moment(b.end).format(DATE_FORMAT),
+        bgColor: '#999999',
+        type: 'block',
+      }));
+
+      const sd = schedulerData;
+      sd.setResources(resourceList);
+      sd.setEvents([...bookingEvents, ...blockEvents]);
+
+      setResources(resourceList);
+      setEvents([...bookingEvents, ...blockEvents]);
+      setSchedulerData(sd);
+    } catch (err) {
+      console.error('Load data failed:', err);
+    } finally {
+      setIsLoading(false);
+    }
   };
-  useEffect(loadData, [selectedHotel, selectedRoomType]);
+  useEffect(() => {
+    loadData();
+  }, [selectedHotel, selectedRoomType]);
 
   // Hide guest suggestions on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (
-        guestInputRef.current &&
-        !guestInputRef.current.contains(e.target)
-      ) {
+      if (guestInputRef.current && !guestInputRef.current.contains(e.target)) {
         setShowGuestSuggestions(false);
       }
     };
     window.addEventListener('click', handleClickOutside);
-    return () =>
-      window.removeEventListener('click', handleClickOutside);
+    return () => window.removeEventListener('click', handleClickOutside);
   }, []);
+
+  // Filter guests for autocomplete
+  const filteredGuests = guests.filter((g) =>
+    g.name.toLowerCase().includes(guestSearch.toLowerCase())
+  );
+
+  // Add new guest
+  const handleAddNewGuest = async () => {
+    if (!newGuestName) {
+      return setNewGuestError('Name is required');
+    }
+    try {
+      const created = await fetchJSON('/api/guests', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: newGuestName,
+          email: newGuestEmail,
+          phone: newGuestPhone,
+        }),
+      });
+      setGuests((prev) => [...prev, created]);
+      setSelectedGuest(created.id);
+      setGuestSearch(created.name);
+      setNewGuestMode(false);
+      toast.success('Guest added');
+    } catch (err) {
+      console.error('Add guest failed:', err);
+      setNewGuestError(err.message);
+    }
+  };
+
+  // Edit existing guest
+  const openGuestEdit = (guest) => {
+    setEditingGuestMode(true);
+    setEditingGuestName(guest.name);
+    setEditingGuestEmail(guest.email);
+    setEditingGuestPhone(guest.phone);
+    setEditingGuestError('');
+  };
+  const handleGuestUpdate = async () => {
+    if (!editingGuestName) {
+      return setEditingGuestError('Name is required');
+    }
+    try {
+      await fetchJSON(`/api/guests/${selectedGuest}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: editingGuestName,
+          email: editingGuestEmail,
+          phone: editingGuestPhone,
+        }),
+      });
+      setGuests((prev) =>
+        prev.map((g) =>
+          g.id === selectedGuest
+            ? {
+                ...g,
+                name: editingGuestName,
+                email: editingGuestEmail,
+                phone: editingGuestPhone,
+              }
+            : g
+        )
+      );
+      setGuestSearch(editingGuestName);
+      setEditingGuestMode(false);
+      toast.success('Guest updated');
+    } catch (err) {
+      console.error('Update guest failed:', err);
+      setEditingGuestError(err.message);
+    }
+  };
 
   // Handle slot selection: block or booking
   const onSelectSlot = (sd, slotId, slotName, start, end) => {
     const startDate = moment(start).format('YYYY-MM-DD');
 
     if (isBlockMode) {
-      // Block mode: use the actual selection end
       const endDate = moment(end).format('YYYY-MM-DD');
       setBlockRoom(slotId);
       setBlockStart(startDate);
@@ -273,7 +331,6 @@ function CalendarScheduler() {
       setEditingBlockId(null);
       setBlockModalVisible(true);
     } else {
-      // Prevent booking on blocked ranges
       const overlap = events.find(
         (ev) =>
           ev.type === 'block' &&
@@ -283,16 +340,13 @@ function CalendarScheduler() {
       );
       if (overlap) {
         toast.error(
-          `Cannot book: this room is blocked from ${moment(
-            overlap.start
-          ).format('YYYY-MM-DD')} to ${moment(overlap.end).format(
+          `Cannot book: this room is blocked from ${moment(overlap.start).format(
             'YYYY-MM-DD'
-          )}`
+          )} to ${moment(overlap.end).format('YYYY-MM-DD')}`
         );
         return;
       }
 
-      // Booking mode: set check-out one day after check-in
       setSelectedRoom(slotId);
       setBookingStart(startDate);
       setBookingEnd(moment(start).add(1, 'days').format('YYYY-MM-DD'));
@@ -306,7 +360,6 @@ function CalendarScheduler() {
       setEditingGuestMode(false);
       setBookingModalVisible(true);
 
-      // Auto-open guest suggestions
       setTimeout(() => {
         const input = guestInputRef.current?.querySelector('input');
         if (input) {
@@ -317,179 +370,6 @@ function CalendarScheduler() {
     }
   };
 
-  // Create or update booking
-  const handleBookingSubmit = async (e) => {
-    e.preventDefault();
-    setBookingFormError('');
-    if (!selectedRoom)
-      return setBookingFormError('Please select a room.');
-    if (!selectedGuest)
-      return setBookingFormError('Please select a guest.');
-    const startISO = `${bookingStart}T12:00:00`;
-    const endISO = `${bookingEnd}T12:00:00`;
-    if (new Date(startISO) >= new Date(endISO)) {
-      return setBookingFormError(
-        'Check-out must be after check-in.'
-      );
-    }
-    try {
-      if (isEditingBooking && editingBookingId) {
-        await fetchJSON(
-          `/api/bookings/${editingBookingId}`,
-          {
-            method: 'PUT',
-            body: JSON.stringify({
-              room: selectedRoom,
-              guest: selectedGuest,
-              startDate: startISO,
-              endDate: endISO,
-              status: bookingStatus,
-            }),
-          }
-        );
-        toast.success('Booking updated');
-      } else {
-        await fetchJSON('/api/bookings', {
-          method: 'POST',
-          body: JSON.stringify({
-            room: selectedRoom,
-            guest: selectedGuest,
-            startDate: startISO,
-            endDate: endISO,
-            status: bookingStatus,
-          }),
-        });
-        toast.success('Booking created');
-      }
-      setBookingModalVisible(false);
-      loadData();
-    } catch (err) {
-      console.error('Booking failed:', err);
-      setBookingFormError(err.message);
-    }
-  };
-
-  // Cancel booking (modal)
-  const handleCancelBooking = async () => {
-    if (!editingBookingId) return;
-    showConfirm(
-      'Cancel this booking?',
-      async () => {
-        try {
-          await fetchJSON(
-            `/api/bookings/${editingBookingId}`,
-            { method: 'DELETE' }
-          );
-          setBookingModalVisible(false);
-          loadData();
-          toast.success('Booking cancelled');
-        } catch (err) {
-          console.error('Cancel booking failed:', err);
-          toast.error('Failed to cancel booking');
-        }
-      },
-      'Confirm Cancellation'
-    );
-  };
-
-  // Close booking modal & reset
-  const closeBookingModal = () => {
-    setBookingModalVisible(false);
-    setIsEditingBooking(false);
-    setEditingBookingId(null);
-    setNewGuestMode(false);
-    setEditingGuestMode(false);
-    setNewGuestName('');
-    setNewGuestEmail('');
-    setNewGuestPhone('');
-    setNewGuestError('');
-    setEditingGuestName('');
-    setEditingGuestEmail('');
-    setEditingGuestPhone('');
-    setEditingGuestError('');
-    setBookingFormError('');
-  };
-
-  // Create or update block
-  const handleBlockSubmit = async (e) => {
-    e.preventDefault();
-    setBlockFormError('');
-    if (!blockRoom)
-      return setBlockFormError('Please select a room.');
-    const startISO = `${blockStart}T00:00:00`;
-    const endISO = `${blockEnd}T23:59:59`;
-    if (new Date(startISO) >= new Date(endISO)) {
-      return setBlockFormError(
-        'Block end must be after block start.'
-      );
-    }
-    try {
-      if (isEditingBlock && editingBlockId) {
-        await fetchJSON(`/api/blocks/${editingBlockId}`, {
-          method: 'DELETE',
-        });
-        await fetchJSON('/api/blocks', {
-          method: 'POST',
-          body: JSON.stringify({
-            room: blockRoom,
-            startDate: startISO,
-            endDate: endISO,
-            reason: blockReason,
-          }),
-        });
-        toast.success('Block updated');
-      } else {
-        await fetchJSON('/api/blocks', {
-          method: 'POST',
-          body: JSON.stringify({
-            room: blockRoom,
-            startDate: startISO,
-            endDate: endISO,
-            reason: blockReason,
-          }),
-        });
-        toast.success('Room blocked');
-      }
-      setBlockModalVisible(false);
-      loadData();
-    } catch (err) {
-      console.error('Block failed:', err);
-      setBlockFormError(err.message);
-    }
-  };
-
-  // Unblock (modal)
-  const handleUnblock = async () => {
-    if (!editingBlockId) return;
-    showConfirm(
-      'Unblock this room?',
-      async () => {
-        try {
-          await fetchJSON(
-            `/api/blocks/${editingBlockId}`,
-            { method: 'DELETE' }
-          );
-          setBlockModalVisible(false);
-          loadData();
-          toast.success('Room unblocked');
-        } catch (err) {
-          console.error('Unblock failed:', err);
-          toast.error('Failed to unblock room');
-        }
-      },
-      'Confirm Unblock'
-    );
-  };
-
-  // Close block modal
-  const closeBlockModal = () => {
-    setBlockModalVisible(false);
-    setIsEditingBlock(false);
-    setEditingBlockId(null);
-    setBlockReason('');
-    setBlockFormError('');
-  };
-
   // Update booking on drag/resize
   const updateBooking = (id, body) =>
     fetchJSON(`/api/bookings/${id}`, {
@@ -497,9 +377,7 @@ function CalendarScheduler() {
       body: JSON.stringify(body),
     })
       .then(loadData)
-      .catch((err) =>
-        console.error('Booking update failed:', err)
-      );
+      .catch((err) => console.error('Booking update failed:', err));
 
   const onEventMove = (ev, slotId, start, end) => {
     if (ev.type === 'booking') {
@@ -530,7 +408,6 @@ function CalendarScheduler() {
     status,
     style
   ) => {
-    let bgColor = event.bgColor;
     const borderWidth = status === 'start' ? 4 : 1;
     const mustBeHeight = status === 'start' ? 28 : 22;
     return (
@@ -538,22 +415,16 @@ function CalendarScheduler() {
         key={event.id}
         title={
           event.type === 'booking'
-            ? `Guest: ${event.title}\nCheck-In: ${moment(
-                event.start
-              ).format('YYYY-MM-DD')}\nCheck-Out: ${moment(
+            ? `Guest: ${event.title}\nCheck-In: ${moment(event.start).format('YYYY-MM-DD')}\nCheck-Out: ${moment(
                 event.end
-              ).format('YYYY-MM-DD')}\nStatus: ${
-                event.status
-              }`
-            : `Block: ${event.title}\nFrom: ${moment(
-                event.start
-              ).format('YYYY-MM-DD')}\nTo: ${moment(
+              ).format('YYYY-MM-DD')}\nStatus: ${event.status}`
+            : `Block: ${event.title}\nFrom: ${moment(event.start).format('YYYY-MM-DD')}\nTo: ${moment(
                 event.end
               ).format('YYYY-MM-DD')}`
         }
         style={{
-          borderLeft: `${borderWidth}px solid ${bgColor}`,
-          backgroundColor: bgColor,
+          borderLeft: `${borderWidth}px solid ${event.bgColor}`,
+          backgroundColor: event.bgColor,
           height: mustBeHeight,
           maxWidth: 999,
           padding: '2px',
@@ -563,9 +434,7 @@ function CalendarScheduler() {
         }}
         onDoubleClick={() => onEventDoubleClick(sd, event)}
       >
-        <span style={{ paddingRight: '16px' }}>
-          {event.title}
-        </span>
+        <span style={{ paddingRight: '16px' }}>{event.title}</span>
         {event.type === 'booking' && (
           <span
             style={{
@@ -599,42 +468,28 @@ function CalendarScheduler() {
       });
     }
     return (
-      <div
-        className="p-2 bg-white rounded shadow"
-        style={{ minWidth: '200px', ...cleanedStyle }}
-      >
+      <div className="p-2 bg-white rounded shadow" style={{ minWidth: '200px', ...cleanedStyle }}>
         {event.type === 'booking' ? (
           <>
-            <div className="font-semibold mb-1">
-              {event.title}
-            </div>
+            <div className="font-semibold mb-1">{event.title}</div>
             <div className="text-sm mb-1">
               <strong>Status:</strong> {event.status}
             </div>
-            <div className="text-sm mb-1">
-              <strong>Check-In:</strong>{' '}
-              {moment(event.start).format('YYYY-MM-DD')}
-            </div>
-            <div className="text-sm mb-1">
-              <strong>Check-Out:</strong>{' '}
-              {moment(event.end).format('YYYY-MM-DD')}
+            <div className="text-sm">
+              <strong>Guest ID:</strong> {event.guestId}
             </div>
           </>
         ) : (
           <>
-            <div className="font-semibold mb-1">
-              Blocked
-            </div>
+            <div className="font-semibold mb-1">Blocked</div>
             <div className="text-sm mb-1">
               <strong>Reason:</strong> {event.title}
             </div>
             <div className="text-sm mb-1">
-              <strong>From:</strong>{' '}
-              {moment(event.start).format('YYYY-MM-DD')}
+              <strong>From:</strong> {moment(event.start).format('YYYY-MM-DD')}
             </div>
-            <div className="text-sm mb-1">
-              <strong>To:</strong>{' '}
-              {moment(event.end).format('YYYY-MM-DD')}
+            <div className="text-sm">
+              <strong>To:</strong> {moment(event.end).format('YYYY-MM-DD')}
             </div>
           </>
         )}
@@ -644,14 +499,10 @@ function CalendarScheduler() {
 
   // Toggle block-all dates
   const toggleBlockAll = async (roomId) => {
-    const existing = events.find(
-      (ev) => ev.resourceId === roomId && ev.title === 'All Dates'
-    );
+    const existing = events.find((ev) => ev.resourceId === roomId && ev.title === 'All Dates');
     try {
       if (existing) {
-        await fetchJSON(`/api/blocks/${existing.id}`, {
-          method: 'DELETE',
-        });
+        await fetchJSON(`/api/blocks/${existing.id}`, { method: 'DELETE' });
         toast.success('All-dates block removed');
       } else {
         await fetchJSON('/api/blocks', {
@@ -699,9 +550,7 @@ function CalendarScheduler() {
       setBlockRoom(event.resourceId);
       setBlockStart(moment(event.start).format('YYYY-MM-DD'));
       setBlockEnd(moment(event.end).format('YYYY-MM-DD'));
-      setBlockReason(
-        event.title === 'Blocked' ? '' : event.title
-      );
+      setBlockReason(event.title === 'Blocked' ? '' : event.title);
       setBlockFormError('');
       setIsEditingBlock(true);
       setEditingBlockId(event.id);
@@ -737,10 +586,7 @@ function CalendarScheduler() {
       e.changedTouches[0].clientX,
       e.changedTouches[0].clientY
     );
-    if (
-      el &&
-      el.classList.contains('week-event-block') === false
-    ) {
+    if (el && !el.classList.contains('week-event-block')) {
       const slotId = el.getAttribute('data-resource-id');
       const start = el.getAttribute('data-start');
       const end = el.getAttribute('data-end');
@@ -750,170 +596,218 @@ function CalendarScheduler() {
     }
   };
 
-  // Filter guests for autocomplete
-  const filteredGuests = guests.filter((g) =>
-    g.name.toLowerCase().includes(guestSearch.toLowerCase())
-  );
-
-  // Add new guest
-  const handleAddNewGuest = async () => {
-    if (!newGuestName) {
-      return setNewGuestError('Name is required');
+  // Create or update booking
+  const handleBookingSubmit = async (e) => {
+    e.preventDefault();
+    setBookingFormError('');
+    if (!selectedRoom) return setBookingFormError('Please select a room.');
+    if (!selectedGuest) return setBookingFormError('Please select a guest.');
+    const startISO = `${bookingStart}T12:00:00`;
+    const endISO = `${bookingEnd}T12:00:00`;
+    if (new Date(startISO) >= new Date(endISO)) {
+      return setBookingFormError('Check-out must be after check-in.');
     }
     try {
-      const created = await fetchJSON('/api/guests', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: newGuestName,
-          email: newGuestEmail,
-          phone: newGuestPhone,
-        }),
-      });
-      setGuests((prev) => [...prev, created]);
-      setSelectedGuest(created.id);
-      setGuestSearch(created.name);
-      setNewGuestMode(false);
-      toast.success('Guest added');
+      if (isEditingBooking && editingBookingId) {
+        await fetchJSON(`/api/bookings/${editingBookingId}`, {
+          method: 'PUT',
+          body: JSON.stringify({
+            room: selectedRoom,
+            guest: selectedGuest,
+            startDate: startISO,
+            endDate: endISO,
+            status: bookingStatus,
+          }),
+        });
+        toast.success('Booking updated');
+      } else {
+        await fetchJSON('/api/bookings', {
+          method: 'POST',
+          body: JSON.stringify({
+            room: selectedRoom,
+            guest: selectedGuest,
+            startDate: startISO,
+            endDate: endISO,
+            status: bookingStatus,
+          }),
+        });
+        toast.success('Booking created');
+      }
+      setBookingModalVisible(false);
+      loadData();
     } catch (err) {
-      console.error('Add guest failed:', err);
-      setNewGuestError(err.message);
+      console.error('Booking failed:', err);
+      setBookingFormError(err.message);
     }
   };
 
-  // Open edit guest
-  const openGuestEdit = (guest) => {
-    setEditingGuestMode(true);
-    setEditingGuestName(guest.name);
-    setEditingGuestEmail(guest.email);
-    setEditingGuestPhone(guest.phone);
+  // Cancel booking (modal)
+  const handleCancelBooking = () => {
+    if (!editingBookingId) return;
+    showConfirm(
+      'Cancel this booking?',
+      async () => {
+        try {
+          await fetchJSON(`/api/bookings/${editingBookingId}`, { method: 'DELETE' });
+          setBookingModalVisible(false);
+          loadData();
+          toast.success('Booking cancelled');
+        } catch (err) {
+          console.error('Cancel booking failed:', err);
+          toast.error('Failed to cancel booking');
+        }
+      },
+      'Confirm Cancellation'
+    );
+  };
+
+  // Close booking modal & reset
+  const closeBookingModal = () => {
+    setBookingModalVisible(false);
+    setIsEditingBooking(false);
+    setEditingBookingId(null);
+    setNewGuestMode(false);
+    setEditingGuestMode(false);
+    setNewGuestName('');
+    setNewGuestEmail('');
+    setNewGuestPhone('');
+    setNewGuestError('');
+    setEditingGuestName('');
+    setEditingGuestEmail('');
+    setEditingGuestPhone('');
     setEditingGuestError('');
+    setBookingFormError('');
   };
 
-  // Update guest
-  const handleGuestUpdate = async () => {
-    if (!editingGuestName) {
-      return setEditingGuestError('Name is required');
+  // Create or update block
+  const handleBlockSubmit = async (e) => {
+    e.preventDefault();
+    setBlockFormError('');
+    if (!blockRoom) return setBlockFormError('Please select a room.');
+    const startISO = `${blockStart}T00:00:00`;
+    const endISO = `${blockEnd}T23:59:59`;
+    if (new Date(startISO) >= new Date(endISO)) {
+      return setBlockFormError('Block end must be after block start.');
     }
     try {
-      await fetchJSON(`/api/guests/${selectedGuest}`, {
-        method: 'PUT',
-        body: JSON.stringify({
-          name: editingGuestName,
-          email: editingGuestEmail,
-          phone: editingGuestPhone,
-        }),
-      });
-      setGuests((prev) =>
-        prev.map((g) =>
-          g.id === selectedGuest
-            ? {
-                ...g,
-                name: editingGuestName,
-                email: editingGuestEmail,
-                phone: editingGuestPhone,
-              }
-            : g
-        )
-      );
-      setGuestSearch(editingGuestName);
-      setEditingGuestMode(false);
-      toast.success('Guest updated');
+      if (isEditingBlock && editingBlockId) {
+        await fetchJSON(`/api/blocks/${editingBlockId}`, { method: 'DELETE' });
+        await fetchJSON('/api/blocks', {
+          method: 'POST',
+          body: JSON.stringify({
+            room: blockRoom,
+            startDate: startISO,
+            endDate: endISO,
+            reason: blockReason,
+          }),
+        });
+        toast.success('Block updated');
+      } else {
+        await fetchJSON('/api/blocks', {
+          method: 'POST',
+          body: JSON.stringify({
+            room: blockRoom,
+            startDate: startISO,
+            endDate: endISO,
+            reason: blockReason,
+          }),
+        });
+        toast.success('Room blocked');
+      }
+      setBlockModalVisible(false);
+      loadData();
     } catch (err) {
-      console.error('Update guest failed:', err);
-      setEditingGuestError(err.message);
+      console.error('Block failed:', err);
+      setBlockFormError(err.message);
     }
+  };
+
+  // Unblock (modal)
+  const handleUnblock = () => {
+    if (!editingBlockId) return;
+    showConfirm(
+      'Unblock this room?',
+      async () => {
+        try {
+          await fetchJSON(`/api/blocks/${editingBlockId}`, { method: 'DELETE' });
+          setBlockModalVisible(false);
+          loadData();
+          toast.success('Room unblocked');
+        } catch (err) {
+          console.error('Unblock failed:', err);
+          toast.error('Failed to unblock room');
+        }
+      },
+      'Confirm Unblock'
+    );
+  };
+
+  // Close block modal & reset
+  const closeBlockModal = () => {
+    setBlockModalVisible(false);
+    setIsEditingBlock(false);
+    setEditingBlockId(null);
+    setBlockReason('');
+    setBlockFormError('');
   };
 
   return (
-    <div className="p-4 relative">
-      {/* Toast container */}
-      <ToastContainer position="top-right" autoClose={3000} />
-
-      <h1 className="text-2xl font-bold mb-4">
-        Booking & Block Calendar
-      </h1>
-
+    <div className="p-4">
+      <ToastContainer />
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center mb-4 space-x-4">
-        <div>
-          <label className="mr-2 font-semibold">Hotel:</label>
-          <select
-            className="border px-2 py-1 rounded"
-            value={selectedHotel || ''}
-            onChange={(e) =>
-              setSelectedHotel(e.target.value)
-            }
-          >
-            {hotels.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mr-2 font-semibold">
-            Room Type:
-          </label>
-          <select
-            className="border px-2 py-1 rounded"
-            value={selectedRoomType}
-            onChange={(e) =>
-              setSelectedRoomType(e.target.value)
-            }
-          >
-            <option value="all">All</option>
-            {roomTypes.map((t) => (
-              <option key={t} value={t}>
-                {t.charAt(0).toUpperCase() + t.slice(1)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={onPrev}
-            className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-          >
-            ←
-          </button>
-          <button
-            onClick={onNext}
-            className="bg-gray-200 px-3 py-1 rounded hover:bg-gray-300"
-          >
-            →
-          </button>
-        </div>
-        <div>
-          <select
-            className="border px-2 py-1 rounded"
-            value={currentView}
-            onChange={(e) =>
-              onViewChange({
-                viewType: e.target.value,
-                showAgenda: false,
-                isEventPerspective: 0,
-              })
-            }
-          >
-            <option value={ViewTypes.Month}>Month</option>
-            <option value={ViewTypes.Week}>Week</option>
-            <option value={ViewTypes.Day}>Day</option>
-          </select>
-        </div>
+      <div className="flex items-center space-x-4 mb-4">
+        <select
+          value={selectedHotel || ''}
+          onChange={(e) => setSelectedHotel(e.target.value)}
+          className="border px-2 py-1 rounded"
+        >
+          {hotels.map((h) => (
+            <option key={h.id} value={h.id}>
+              {h.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedRoomType}
+          onChange={(e) => setSelectedRoomType(e.target.value)}
+          className="border px-2 py-1 rounded"
+        >
+          <option value="all">All Types</option>
+          {roomTypes.map((rt) => (
+            <option key={rt} value={rt}>
+              {rt}
+            </option>
+          ))}
+        </select>
+        <select
+          value={currentView}
+          onChange={(e) =>
+            onViewChange({
+              viewType: parseInt(e.target.value, 10),
+              showAgenda: false,
+              isEventPerspective: 0,
+            })
+          }
+          className="border px-2 py-1 rounded"
+        >
+          <option value={ViewTypes.Month}>Month</option>
+          <option value={ViewTypes.Week}>Week</option>
+          <option value={ViewTypes.Day}>Day</option>
+        </select>
+        <button onClick={onPrev} className="px-2 py-1 border rounded">
+          Prev
+        </button>
+        <button onClick={onNext} className="px-2 py-1 border rounded">
+          Next
+        </button>
         <div className="flex items-center ml-4">
           <input
             type="checkbox"
             id="modeToggle"
             checked={isBlockMode}
-            onChange={(e) =>
-              setIsBlockMode(e.target.checked)
-            }
+            onChange={(e) => setIsBlockMode(e.target.checked)}
           />
-          <label
-            htmlFor="modeToggle"
-            className="ml-1 font-semibold"
-          >
+          <label htmlFor="modeToggle" className="ml-1 font-semibold">
             Block Mode
           </label>
         </div>
@@ -921,7 +815,7 @@ function CalendarScheduler() {
 
       {/* Scheduler */}
       {isLoading ? (
-        <div className="text-center py-10">Loading.</div>
+        <div className="text-center py-10">Loading...</div>
       ) : (
         <div
           ref={schedulerWrapperRef}
@@ -933,17 +827,13 @@ function CalendarScheduler() {
             resources={resources}
             events={events}
             onViewChange={onViewChange}
-            onSelectDate={onSelectDate} 
+            onSelectDate={onSelectDate}
             moveEvent={onEventMove}
             newEvent={onSelectSlot}
             updateEventStart={onEventResize}
             updateEventEnd={onEventResize}
-            eventItemTemplateResolver={
-              eventItemTemplateResolver
-            }
-            eventItemPopoverTemplateResolver={
-              eventItemPopoverTemplateResolver
-            }
+            eventItemTemplateResolver={eventItemTemplateResolver}
+            eventItemPopoverTemplateResolver={eventItemPopoverTemplateResolver}
           />
         </div>
       )}
@@ -953,24 +843,19 @@ function CalendarScheduler() {
         <strong>Legend:</strong>
         <div className="flex space-x-4 mt-1">
           <div className="flex items-center space-x-1">
-            <span className="w-4 h-4 bg-yellow-500 inline-block rounded" />
-            Tentative
+            <span className="w-4 h-4 bg-yellow-500 inline-block rounded" /> Tentative
           </div>
           <div className="flex items-center space-x-1">
-            <span className="w-4 h-4 bg-blue-500 inline-block rounded" />
-            Booked
+            <span className="w-4 h-4 bg-blue-500 inline-block rounded" /> Booked
           </div>
           <div className="flex items-center space-x-1">
-            <span className="w-4 h-4 bg-green-500 inline-block rounded" />
-            Checked In
+            <span className="w-4 h-4 bg-green-500 inline-block rounded" /> Checked In
           </div>
           <div className="flex items-center space-x-1">
-            <span className="w-4 h-4 bg-red-500 inline-block rounded" />
-            Checked Out
+            <span className="w-4 h-4 bg-red-500 inline-block rounded" /> Checked Out
           </div>
           <div className="flex items-center space-x-1">
-            <span className="w-4 h-4 bg-gray-600 inline-block rounded" />
-            Cancelled / Block
+            <span className="w-4 h-4 bg-gray-600 inline-block rounded" /> Cancelled / Block
           </div>
         </div>
       </div>
@@ -978,54 +863,34 @@ function CalendarScheduler() {
       {/* Booking Modal */}
       {bookingModalVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow w-96 relative">
+          <div className="bg-white p-6 rounded shadow w-96">
             <h2 className="text-xl font-semibold mb-4">
-              {isEditingBooking
-                ? 'Edit Booking'
-                : 'New Booking'}
+              {isEditingBooking ? 'Edit Booking' : 'New Booking'}
             </h2>
-            {bookingFormError && (
-              <div className="text-red-600 mb-2">
-                {bookingFormError}
-              </div>
-            )}
-            <form
-              onSubmit={handleBookingSubmit}
-              className="space-y-4"
-            >
-              {/* Room */}
+            {bookingFormError && <div className="text-red-600 mb-2">{bookingFormError}</div>}
+            <form onSubmit={handleBookingSubmit} className="space-y-4">
               <div>
-                <label className="block font-medium">
-                  Room:
-                </label>
+                <label className="block font-medium">Room:</label>
                 <select
                   className="w-full border px-2 py-1 rounded"
                   value={selectedRoom}
-                  onChange={(e) =>
-                    setSelectedRoom(e.target.value)
-                  }
+                  onChange={(e) => setSelectedRoom(e.target.value)}
                 >
-                  <option value="">
-                    — Select Room —
-                  </option>
+                  <option value="">— Select Room —</option>
                   {resources.map((r) => (
-                    <option
-                      key={r.id}
-                      value={r.id}
-                    >{`Room ${r.number}`}</option>
+                    <option key={r.id} value={r.id}>
+                      {`Room ${r.number}`}
+                    </option>
                   ))}
                 </select>
               </div>
 
-              {/* Guest */}
-              <div ref={guestInputRef}>
-                <label className="block font-medium mb-1">
-                  Guest:
-                </label>
+              <div ref={guestInputRef} className="relative">
+                <label className="block font-medium mb-1">Guest:</label>
                 <input
                   type="text"
                   className="w-full border px-2 py-1 rounded mb-1"
-                  placeholder="Search guest."
+                  placeholder="Search guest..."
                   value={guestSearch}
                   onChange={(e) => {
                     setGuestSearch(e.target.value);
@@ -1034,208 +899,184 @@ function CalendarScheduler() {
                     setEditingGuestMode(false);
                     setNewGuestMode(false);
                   }}
-                  onFocus={() =>
-                    setShowGuestSuggestions(true)
-                  }
                 />
                 {showGuestSuggestions && (
-                  <ul className="absolute z-20 bg-white border w-full max-h-40 overflow-y-auto rounded mt-1 shadow">
-                    <li
-                      className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-blue-600"
-                      onClick={() => {
-                        setNewGuestMode(true);
-                        setShowGuestSuggestions(false);
-                      }}
-                    >
-                      + Add new guest
-                    </li>
+                  <div className="absolute left-0 right-0 bg-white border max-h-40 overflow-auto z-10">
                     {filteredGuests.map((g) => (
-                      <li
+                      <div
                         key={g.id}
-                        className="px-2 py-1 hover:bg-gray-100 cursor-pointer"
+                        className="p-2 hover:bg-gray-100 flex justify-between items-center cursor-pointer"
                         onClick={() => {
-                          setSelectedGuest(g.id);
                           setGuestSearch(g.name);
+                          setSelectedGuest(g.id);
                           setShowGuestSuggestions(false);
                         }}
                       >
-                        {g.name} ({g.email || '—'})
-                      </li>
+                        <span>{g.name}</span>
+                        <button
+                          type="button"
+                          className="text-blue-500"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openGuestEdit(g);
+                          }}
+                        >
+                          ✎
+                        </button>
+                      </div>
                     ))}
-                  </ul>
+                    <div className="p-2 border-t">
+                      {newGuestMode ? (
+                        <>
+                          {newGuestError && <div className="text-red-600 mb-1">{newGuestError}</div>}
+                          <input
+                            type="text"
+                            className="w-full border px-2 py-1 rounded mb-1"
+                            placeholder="Name"
+                            value={newGuestName}
+                            onChange={(e) => setNewGuestName(e.target.value)}
+                          />
+                          <input
+                            type="email"
+                            className="w-full border px-2 py-1 rounded mb-1"
+                            placeholder="Email"
+                            value={newGuestEmail}
+                            onChange={(e) => setNewGuestEmail(e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="w-full border px-2 py-1 rounded mb-1"
+                            placeholder="Phone"
+                            value={newGuestPhone}
+                            onChange={(e) => setNewGuestPhone(e.target.value)}
+                          />
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => setNewGuestMode(false)}
+                              className="px-4 py-2 rounded border"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleAddNewGuest}
+                              className="px-4 py-2 rounded bg-blue-600 text-white"
+                            >
+                              Add
+                            </button>
+                          </div>
+                        </>
+                      ) : editingGuestMode ? (
+                        <>
+                          {editingGuestError && (
+                            <div className="text-red-600 mb-1">{editingGuestError}</div>
+                          )}
+                          <input
+                            type="text"
+                            className="w-full border px-2 py-1 rounded mb-1"
+                            value={editingGuestName}
+                            onChange={(e) => setEditingGuestName(e.target.value)}
+                          />
+                          <input
+                            type="email"
+                            className="w-full border px-2 py-1 rounded mb-1"
+                            value={editingGuestEmail}
+                            onChange={(e) => setEditingGuestEmail(e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="w-full border px-2 py-1 rounded mb-1"
+                            value={editingGuestPhone}
+                            onChange={(e) => setEditingGuestPhone(e.target.value)}
+                          />
+                          <div className="flex justify-end space-x-2">
+                            <button
+                              type="button"
+                              onClick={() => setEditingGuestMode(false)}
+                              className="px-4 py-2 rounded border"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleGuestUpdate}
+                              className="px-4 py-2 rounded bg-blue-600 text-white"
+                            >
+                              Update
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="w-full text-left text-blue-600"
+                          onClick={() => setNewGuestMode(true)}
+                        >
+                          + Add new guest
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
 
-              {/* New Guest */}
-              {newGuestMode && (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    className="w-full border px-2 py-1 rounded"
-                    placeholder="Name"
-                    value={newGuestName}
-                    onChange={(e) =>
-                      setNewGuestName(e.target.value)
-                    }
-                  />
-                  <input
-                    type="email"
-                    className="w-full border px-2 py-1 rounded"
-                    placeholder="Email"
-                    value={newGuestEmail}
-                    onChange={(e) =>
-                      setNewGuestEmail(e.target.value)
-                    }
-                  />
-                  <input
-                    type="tel"
-                    className="w-full border px-2 py-1 rounded"
-                    placeholder="Phone"
-                    value={newGuestPhone}
-                    onChange={(e) =>
-                      setNewGuestPhone(e.target.value)
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddNewGuest}
-                    className="bg-green-600 text-white px-4 py-2 rounded"
-                  >
-                    Save Guest
-                  </button>
-                  {newGuestError && (
-                    <div className="text-red-600">
-                      {newGuestError}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Edit Guest */}
-              {editingGuestMode && (
-                <div className="space-y-2">
-                  <input
-                    type="text"
-                    className="w-full border px-2 py-1 rounded"
-                    value={editingGuestName}
-                    onChange={(e) =>
-                      setEditingGuestName(e.target.value)
-                    }
-                  />
-                  <input
-                    type="email"
-                    className="w-full border px-2 py-1 rounded"
-                    value={editingGuestEmail}
-                    onChange={(e) =>
-                      setEditingGuestEmail(e.target.value)
-                    }
-                  />
-                  <input
-                    type="tel"
-                    className="w-full border px-2 py-1 rounded"
-                    value={editingGuestPhone}
-                    onChange={(e) =>
-                      setEditingGuestPhone(e.target.value)
-                    }
-                  />
-                  <button
-                    type="button"
-                    onClick={handleGuestUpdate}
-                    className="bg-blue-600 text-white px-4 py-2 rounded"
-                  >
-                    Update Guest
-                  </button>
-                  {editingGuestError && (
-                    <div className="text-red-600">
-                      {editingGuestError}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Dates */}
               <div>
-                <label className="block font-medium">
-                  Check-In
-                </label>
+                <label className="block font-medium">Check-In:</label>
                 <input
                   type="date"
                   className="w-full border px-2 py-1 rounded"
                   value={bookingStart}
-                  onChange={(e) =>
-                    setBookingStart(e.target.value)
-                  }
+                  onChange={(e) => setBookingStart(e.target.value)}
                 />
               </div>
+
               <div>
-                <label className="block font-medium">
-                  Check-Out
-                </label>
+                <label className="block font-medium">Check-Out:</label>
                 <input
                   type="date"
                   className="w-full border px-2 py-1 rounded"
                   value={bookingEnd}
-                  onChange={(e) =>
-                    setBookingEnd(e.target.value)
-                  }
+                  onChange={(e) => setBookingEnd(e.target.value)}
                 />
               </div>
 
-              {/* Status */}
-              {isEditingBooking && (
-                <div>
-                  <label className="block font-medium">
-                    Status
-                  </label>
-                  <select
-                    className="w-full border px-2 py-1 rounded"
-                    value={bookingStatus}
-                    onChange={(e) =>
-                      setBookingStatus(e.target.value)
-                    }
-                  >
-                    <option value="tentative">
-                      Tentative
-                    </option>
-                    <option value="booked">Booked</option>
-                    <option value="checkedin">
-                      Checked In
-                    </option>
-                    <option value="checkedout">
-                      Checked Out
-                    </option>
-                  </select>
-                </div>
-              )}
-
-              {/* Actions */}
-              <div className="flex justify-between">
-                <button
-                  type="button"
-                  onClick={closeBookingModal}
-                  className="px-4 py-2 rounded border"
+              <div>
+                <label className="block font-medium">Status:</label>
+                <select
+                  className="w-full border px-2 py-1 rounded"
+                  value={bookingStatus}
+                  onChange={(e) => setBookingStatus(e.target.value)}
                 >
-                  Cancel
-                </button>
+                  <option value="tentative">Tentative</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="checkedin">Checked In</option>
+                  <option value="checkedout">Checked Out</option>
+                </select>
+              </div>
+
+              <div className="flex justify-between">
                 {isEditingBooking && (
                   <button
                     type="button"
                     onClick={handleCancelBooking}
-                    className="bg-red-600 text-white px-4 py-2 rounded"
+                    className="px-4 py-2 rounded bg-red-600 text-white"
                   >
                     Cancel Booking
                   </button>
                 )}
-                {!newGuestMode && !editingGuestMode && (
+                <div className="flex space-x-2">
                   <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded"
+                    type="button"
+                    onClick={closeBookingModal}
+                    className="px-4 py-2 rounded border"
                   >
-                    {isEditingBooking
-                      ? 'Update'
-                      : 'Book'}
+                    Close
                   </button>
-                )}
+                  <button type="submit" className="px-4 py-2 rounded bg-blue-600 text-white">
+                    {isEditingBooking ? 'Update' : 'Create'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
@@ -1245,106 +1086,80 @@ function CalendarScheduler() {
       {/* Block Modal */}
       {blockModalVisible && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white p-6 rounded shadow w-96 relative">
+          <div className="bg-white p-6 rounded shadow w-80">
             <h2 className="text-xl font-semibold mb-4">
               {isEditingBlock ? 'Edit Block' : 'New Block'}
             </h2>
-            {blockFormError && (
-              <div className="text-red-600 mb-2">
-                {blockFormError}
-              </div>
-            )}
-            <form
-              onSubmit={handleBlockSubmit}
-              className="space-y-4"
-            >
+            {blockFormError && <div className="text-red-600 mb-2">{blockFormError}</div>}
+            <form onSubmit={handleBlockSubmit} className="space-y-4">
               <div>
-                <label className="block font-medium">
-                  Room:
-                </label>
+                <label className="block font-medium">Room:</label>
                 <select
                   className="w-full border px-2 py-1 rounded"
                   value={blockRoom}
-                  onChange={(e) =>
-                    setBlockRoom(e.target.value)
-                  }
+                  onChange={(e) => setBlockRoom(e.target.value)}
                 >
-                  <option value="">
-                    — Select Room —
-                  </option>
+                  <option value="">— Select Room —</option>
                   {resources.map((r) => (
-                    <option
-                      key={r.id}
-                      value={r.id}
-                    >{`Room ${r.number}`}</option>
+                    <option key={r.id} value={r.id}>
+                      {`Room ${r.number}`}
+                    </option>
                   ))}
                 </select>
               </div>
+
               <div>
-                <label className="block font-medium">
-                  Reason (optional):
-                </label>
-                <input
-                  type="text"
-                  className="w-full border px-2 py-1 rounded"
-                  placeholder="e.g. Maintenance"
-                  value={blockReason}
-                  onChange={(e) =>
-                    setBlockReason(e.target.value)
-                  }
-                />
-              </div>
-              <div>
-                <label className="block font-medium">
-                  Block Start:
-                </label>
+                <label className="block font-medium">Start:</label>
                 <input
                   type="date"
                   className="w-full border px-2 py-1 rounded"
                   value={blockStart}
-                  onChange={(e) =>
-                    setBlockStart(e.target.value)
-                  }
+                  onChange={(e) => setBlockStart(e.target.value)}
                 />
               </div>
+
               <div>
-                <label className="block font-medium">
-                  Block End:
-                </label>
+                <label className="block font-medium">End:</label>
                 <input
                   type="date"
                   className="w-full border px-2 py-1 rounded"
                   value={blockEnd}
-                  onChange={(e) =>
-                    setBlockEnd(e.target.value)
-                  }
+                  onChange={(e) => setBlockEnd(e.target.value)}
                 />
               </div>
+
+              <div>
+                <label className="block font-medium">Reason:</label>
+                <input
+                  type="text"
+                  className="w-full border px-2 py-1 rounded"
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                />
+              </div>
+
               <div className="flex justify-between">
-                <button
-                  type="button"
-                  onClick={closeBlockModal}
-                  className="px-4 py-2 rounded border"
-                >
-                  Cancel
-                </button>
                 {isEditingBlock && (
                   <button
                     type="button"
                     onClick={handleUnblock}
-                    className="bg-red-600 text-white px-4 py-2 rounded"
+                    className="px-4 py-2 rounded bg-red-600 text-white"
                   >
                     Unblock
                   </button>
                 )}
-                {!isEditingBlock && (
+                <div className="flex space-x-2">
                   <button
-                    type="submit"
-                    className="bg-blue-600 text-white px-4 py-2 rounded"
+                    type="button"
+                    onClick={closeBlockModal}
+                    className="px-4 py-2 rounded border"
                   >
-                    Block
+                    Close
                   </button>
-                )}
+                  <button type="submit" className="px-4 py-2 rounded bg-blue-600 text-white">
+                    {isEditingBlock ? 'Update' : 'Block'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

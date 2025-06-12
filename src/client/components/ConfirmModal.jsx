@@ -1,15 +1,7 @@
+// src/client/components/ConfirmModal.jsx
 import React from 'react';
 
-/**
- * Simple yes/no confirmation dialog.
- */
-export default function ConfirmModal({
-  visible,
-  title,
-  message,
-  onConfirm,
-  onCancel,
-}) {
+const ConfirmModal = ({ visible, title, message, onConfirm, onCancel }) => {
   if (!visible) return null;
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -20,14 +12,13 @@ export default function ConfirmModal({
           <button onClick={onCancel} className="px-4 py-2 rounded border">
             No
           </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 rounded bg-red-600 text-white"
-          >
+          <button onClick={onConfirm} className="px-4 py-2 rounded bg-red-600 text-white">
             Yes
           </button>
         </div>
       </div>
     </div>
   );
-}
+};
+
+export default ConfirmModal;
