@@ -1111,54 +1111,54 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
                 </select>
               </div>
 
-              {/* Guest */}
-              <div ref={guestInputRef}>
-                <label className="block font-medium mb-1">
-                  Guest:
-                </label>
-                <input
-                  type="text"
-                  className="w-full border px-2 py-1 rounded mb-1"
-                  placeholder="Search guest."
-                  value={guestSearch}
-                  onChange={(e) => {
-                    setGuestSearch(e.target.value);
-                    setShowGuestSuggestions(true);
-                    setSelectedGuest('');
-                    setEditingGuestMode(false);
-                    setNewGuestMode(false);
-                  }}
-                  onFocus={() =>
-                    setShowGuestSuggestions(true)
-                  }
-                />
-                {showGuestSuggestions && (
-                  <ul className="absolute z-20 bg-white border w-full max-h-40 overflow-y-auto rounded mt-1 shadow">
-                    <li
-                      className="px-2 py-1 hover:bg-gray-100 cursor-pointer text-blue-600"
-                      onClick={() => {
-                        setNewGuestMode(true);
-                        setShowGuestSuggestions(false);
-                      }}
-                    >
-                      + Add new guest
-                    </li>
-                    {filteredGuests.map((g) => (
-                      <li
-                        key={g.id}
-                        className="px-2 py-1 hover:bg-gray-100 cursor-pointer"
-                        onClick={() => {
-                          setSelectedGuest(g.id);
-                          setGuestSearch(g.name);
-                          setShowGuestSuggestions(false);
-                        }}
-                      >
-                        {g.name} ({g.email || '—'})
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+
+{/* Guest */}
+<div ref={guestInputRef} className="relative">
+  <label className="block font-medium mb-1">
+    Guest:
+  </label>
+  <input
+    type="text"
+    className="w-full border px-2 py-1 rounded mb-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+    placeholder="Search guest…"
+    value={guestSearch}
+    onChange={e => {
+      setGuestSearch(e.target.value);
+      setShowGuestSuggestions(true);
+      setSelectedGuest('');
+      setEditingGuestMode(false);
+      setNewGuestMode(false);
+    }}
+    onFocus={() => setShowGuestSuggestions(true)}
+  />
+  {showGuestSuggestions && (
+    <ul className="absolute left-0 z-50 mt-1 w-full bg-white border border-gray-300 rounded-md shadow-lg max-h-32 overflow-y-auto divide-y divide-gray-200">
+      <li
+        className="px-3 py-2 hover:bg-gray-100 cursor-pointer font-semibold text-blue-600"
+        onClick={() => {
+          setNewGuestMode(true);
+          setShowGuestSuggestions(false);
+        }}
+      >
+        + Add new guest
+      </li>
+      {filteredGuests.map(g => (
+        <li
+          key={g.id}
+          className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+          onClick={() => {
+            setSelectedGuest(g.id);
+            setGuestSearch(g.name);
+            setShowGuestSuggestions(false);
+          }}
+        >
+          {g.name} ({g.email || '—'})
+        </li>
+      ))}
+    </ul>
+  )}
+</div>
+
 
               {/* New Guest */}
               {newGuestMode && (
