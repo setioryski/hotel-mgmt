@@ -53,6 +53,8 @@ const ConfirmModal = ({ visible, title, message, onConfirm, onCancel }) => {
 // CalendarScheduler: main booking/block calendar component
 // ──────────────────────────────────────────────────────────────
 function CalendarScheduler() {
+
+  const [blockedRoomsAll, setBlockedRoomsAll] = useState([]);
   // ────────────────────────────────────────────────────────────
   // SchedulerData initialization (month view, no headers/popovers)
   // ────────────────────────────────────────────────────────────
@@ -214,19 +216,40 @@ function CalendarScheduler() {
         const filteredRooms = rooms.filter(
           (r) => selectedRoomType === 'all' || r.type === selectedRoomType
         );
-        const resourceList = filteredRooms.map((r) => ({
-          id: r.id,
-          number: r.number,
-          name: (
-            <span
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleBlockAll(r.id);
-              }}
-              style={{ cursor: 'pointer', textDecoration: 'underline' }}
-            >{`Room ${r.number} (${r.type})`}</span>
-          ),
-        }));
+const resourceList = filteredRooms.map((r) => {
+  const isBlocked = blockedRoomsAll.includes(r.id);
+  return {
+    id: r.id,
+    number: r.number,
+    name: (
+      <div
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleBlockAll(r.id);
+        }}
+        style={{
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          display: 'block',           // make it fill the cell
+          width: '100%',
+          height: '100%',
+          boxSizing: 'border-box',    // include padding in height
+          padding: '4px 8px',         // optional, for some inner spacing
+          backgroundColor: isBlocked 
+            ? 'rgba(255, 0, 0, 0.2)'  // translucent red fill
+            : undefined,
+          color: isBlocked 
+            ? 'red'                   // red text
+            : undefined,
+        }}
+      >
+        {`Room ${r.number} (${r.type})`}
+      </div>
+    ),
+  };
+});
+
+
 
         // Convert bookings to scheduler events
         const bookingEvents = (Array.isArray(bookingsResp)
@@ -297,10 +320,44 @@ function CalendarScheduler() {
       window.removeEventListener('click', handleClickOutside);
   }, []);
 
+  // Paint the entire "sidebar" row red for blocked rooms
+// After
+useEffect(() => {
+  const wrapper = schedulerWrapperRef.current;
+  if (!wrapper) return;
+
+  // Grab every table with class "resource-table"
+  const tables = wrapper.querySelectorAll('table.resource-table');
+  if (tables.length === 0) return;
+
+  // The *last* one is the sidebar listing your rooms
+  const resourceTable = tables[tables.length - 1];
+
+  const rows = Array.from(resourceTable.querySelectorAll('tbody tr'));
+  rows.forEach((tr, idx) => {
+    const cell = tr.querySelector('td');
+    const roomId = resources[idx]?.id;
+    if (blockedRoomsAll.includes(roomId)) {
+      cell.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+      cell.style.color = 'red';
+    } else {
+      cell.style.backgroundColor = '';
+      cell.style.color = '';
+    }
+  });
+}, [resources, blockedRoomsAll]);
+
+
+
   // ────────────────────────────────────────────────────────────
   // Slot selection: handles both block-mode and booking-mode
   // ────────────────────────────────────────────────────────────
 const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
+  // Blocked-all rooms cannot be selected
+  if (blockedRoomsAll.includes(slotId)) {
+    toast.error('This room is fully blocked.');
+    return;
+  }
   const startDate = moment(start).format('YYYY-MM-DD');
   const endDate = moment(end).format('YYYY-MM-DD');
 
@@ -713,34 +770,20 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
   // ────────────────────────────────────────────────────────────
   // Block-all toggle: block/unblock entire timeline
   // ────────────────────────────────────────────────────────────
-  const toggleBlockAll = async (roomId) => {
-    const existing = events.find(
-      (ev) => ev.resourceId === roomId && ev.title === 'All Dates'
+const toggleBlockAll = (roomId) => {
+  setBlockedRoomsAll(curr => {
+    const isBlocked = curr.includes(roomId);
+    const next = isBlocked
+      ? curr.filter(id => id !== roomId)
+      : [...curr, roomId];
+    toast.success(
+      isBlocked
+        ? 'Room unblocked for all dates'
+        : 'Room blocked for all dates'
     );
-    try {
-      if (existing) {
-        await fetchJSON(`/api/blocks/${existing.id}`, {
-          method: 'DELETE',
-        });
-        toast.success('All-dates block removed');
-      } else {
-        await fetchJSON('/api/blocks', {
-          method: 'POST',
-          body: JSON.stringify({
-            room: roomId,
-            startDate: '1900-01-01T00:00:00',
-            endDate: '2999-12-31T23:59:59',
-            reason: 'All Dates',
-          }),
-        });
-        toast.success('Room blocked for all dates');
-      }
-      loadData();
-    } catch (err) {
-      console.error('Toggle block-all failed:', err);
-      toast.error('Failed to toggle block-all');
-    }
-  };
+    return next;
+  });
+};
 
   // ────────────────────────────────────────────────────────────
   // Double-click handler: open edit modal for booking or block
