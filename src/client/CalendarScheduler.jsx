@@ -1,5 +1,8 @@
 // src/client/CalendarScheduler.jsx
 
+// ──────────────────────────────────────────────────────────────
+// Imports & Third-Party Setup
+// ──────────────────────────────────────────────────────────────
 import React, { useEffect, useState, useRef } from 'react';
 import Scheduler, {
   SchedulerData,
@@ -20,7 +23,9 @@ const CELL_CSS_OVERRIDES = {
   userSelect: 'none',
 };
 
-// Reusable confirmation modal for critical actions
+// ──────────────────────────────────────────────────────────────
+// ConfirmModal: reusable confirmation dialog for critical actions
+// ──────────────────────────────────────────────────────────────
 const ConfirmModal = ({ visible, title, message, onConfirm, onCancel }) => {
   if (!visible) return null;
   return (
@@ -44,20 +49,31 @@ const ConfirmModal = ({ visible, title, message, onConfirm, onCancel }) => {
   );
 };
 
+// ──────────────────────────────────────────────────────────────
+// CalendarScheduler: main booking/block calendar component
+// ──────────────────────────────────────────────────────────────
 function CalendarScheduler() {
-  // Scheduler Data
+  // ────────────────────────────────────────────────────────────
+  // SchedulerData initialization (month view, no headers/popovers)
+  // ────────────────────────────────────────────────────────────
   const [schedulerData, setSchedulerData] = useState(() => {
     const sd = new SchedulerData(
       moment().format(DATE_FORMAT),
       ViewTypes.Month,
       false,
       false,
-      { minuteStep: 30, headerEnabled: false }
+      {
+        minuteStep: 30,
+        headerEnabled: false,
+        eventItemPopoverEnabled: false,
+      }
     );
     return sd;
   });
 
-  // Core lists & filters
+  // ────────────────────────────────────────────────────────────
+  // Core state hooks: resources, events, filters, loading/mode
+  // ────────────────────────────────────────────────────────────
   const [resources, setResources] = useState([]);
   const [events, setEvents] = useState([]);
   const [hotels, setHotels] = useState([]);
@@ -68,7 +84,9 @@ function CalendarScheduler() {
   const [isBlockMode, setIsBlockMode] = useState(false);
   const [currentView, setCurrentView] = useState(ViewTypes.Month);
 
-  // Guest autocomplete & inline add/edit states
+  // ────────────────────────────────────────────────────────────
+  // Guest autocomplete & inline add/edit state
+  // ────────────────────────────────────────────────────────────
   const [guests, setGuests] = useState([]);
   const [guestSearch, setGuestSearch] = useState('');
   const [showGuestSuggestions, setShowGuestSuggestions] = useState(false);
@@ -84,7 +102,9 @@ function CalendarScheduler() {
   const [editingGuestPhone, setEditingGuestPhone] = useState('');
   const [editingGuestError, setEditingGuestError] = useState('');
 
-  // Booking modal & form states
+  // ────────────────────────────────────────────────────────────
+  // Booking modal & form state
+  // ────────────────────────────────────────────────────────────
   const [bookingModalVisible, setBookingModalVisible] = useState(false);
   const [isEditingBooking, setIsEditingBooking] = useState(false);
   const [editingBookingId, setEditingBookingId] = useState(null);
@@ -94,7 +114,9 @@ function CalendarScheduler() {
   const [bookingStatus, setBookingStatus] = useState('tentative');
   const [bookingFormError, setBookingFormError] = useState('');
 
-  // Block modal & form states
+  // ────────────────────────────────────────────────────────────
+  // Block modal & form state
+  // ────────────────────────────────────────────────────────────
   const [blockModalVisible, setBlockModalVisible] = useState(false);
   const [isEditingBlock, setIsEditingBlock] = useState(false);
   const [editingBlockId, setEditingBlockId] = useState(null);
@@ -104,17 +126,23 @@ function CalendarScheduler() {
   const [blockReason, setBlockReason] = useState('');
   const [blockFormError, setBlockFormError] = useState('');
 
+  // ────────────────────────────────────────────────────────────
   // Confirm modal state
+  // ────────────────────────────────────────────────────────────
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
   const [confirmTitle, setConfirmTitle] = useState('');
   const [confirmMessage, setConfirmMessage] = useState('');
   const [confirmCallback, setConfirmCallback] = useState(() => {});
 
-  // Refs
+  // ────────────────────────────────────────────────────────────
+  // Refs for guest input wrapper & scheduler container
+  // ────────────────────────────────────────────────────────────
   const guestInputRef = useRef();
   const schedulerWrapperRef = useRef(null);
 
-  // Helper: fetch JSON and throw on error
+  // ────────────────────────────────────────────────────────────
+  // Helper: fetch JSON with error handling
+  // ────────────────────────────────────────────────────────────
   const fetchJSON = async (url, opts = {}) => {
     const res = await fetch(url, {
       credentials: 'include',
@@ -132,7 +160,9 @@ function CalendarScheduler() {
     return data;
   };
 
-  // Show confirm modal
+  // ────────────────────────────────────────────────────────────
+  // Confirm modal controls
+  // ────────────────────────────────────────────────────────────
   const showConfirm = (message, callback, title = '') => {
     setConfirmTitle(title);
     setConfirmMessage(message);
@@ -147,7 +177,9 @@ function CalendarScheduler() {
     setConfirmModalVisible(false);
   };
 
-  // Load hotels & guests on mount
+  // ────────────────────────────────────────────────────────────
+  // Initial data fetch: hotels & guests
+  // ────────────────────────────────────────────────────────────
   useEffect(() => {
     fetchJSON('/api/hotels')
       .then((data) => {
@@ -162,7 +194,9 @@ function CalendarScheduler() {
       .catch((err) => console.error('Load guests failed:', err));
   }, []);
 
-  // Fetch & normalize rooms/bookings/blocks
+  // ────────────────────────────────────────────────────────────
+  // Load & normalize rooms, bookings, blocks into scheduler
+  // ────────────────────────────────────────────────────────────
   const loadData = () => {
     if (!selectedHotel) return;
     setIsLoading(true);
@@ -172,6 +206,7 @@ function CalendarScheduler() {
       fetchJSON(`/api/blocks?hotel=${selectedHotel}`),
     ])
       .then(([roomsResp, bookingsResp, blocksResp]) => {
+        // Normalize rooms
         const rooms = Array.isArray(roomsResp)
           ? roomsResp
           : roomsResp.data || [];
@@ -193,6 +228,7 @@ function CalendarScheduler() {
           ),
         }));
 
+        // Convert bookings to scheduler events
         const bookingEvents = (Array.isArray(bookingsResp)
           ? bookingsResp
           : bookingsResp.data || []
@@ -214,6 +250,7 @@ function CalendarScheduler() {
           };
         });
 
+        // Convert blocks to scheduler events
         const blockEvents = (Array.isArray(blocksResp)
           ? blocksResp
           : blocksResp.data || []
@@ -227,6 +264,7 @@ function CalendarScheduler() {
           type: 'block',
         }));
 
+        // Apply to scheduler
         const sd = schedulerData;
         sd.setResources(resourceList);
         sd.setEvents([...bookingEvents, ...blockEvents]);
@@ -242,7 +280,9 @@ function CalendarScheduler() {
   };
   useEffect(loadData, [selectedHotel, selectedRoomType]);
 
+  // ────────────────────────────────────────────────────────────
   // Hide guest suggestions on outside click
+  // ────────────────────────────────────────────────────────────
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -257,13 +297,31 @@ function CalendarScheduler() {
       window.removeEventListener('click', handleClickOutside);
   }, []);
 
-  // Handle slot selection: block or booking
-  const onSelectSlot = (sd, slotId, slotName, start, end) => {
+  // ────────────────────────────────────────────────────────────
+  // Slot selection: handles both block-mode and booking-mode
+  // ────────────────────────────────────────────────────────────
+  const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
     const startDate = moment(start).format('YYYY-MM-DD');
+    const endDate = moment(end).format('YYYY-MM-DD');
 
     if (isBlockMode) {
-      // Block mode: use the actual selection end
-      const endDate = moment(end).format('YYYY-MM-DD');
+      // Prevent blocking if overlaps existing booking
+      const bookingOverlap = events.find(ev =>
+        ev.type === 'booking' &&
+        ev.resourceId === slotId &&
+        moment(start).isBefore(moment(ev.end)) &&
+        moment(end).isAfter(moment(ev.start))
+      );
+      if (bookingOverlap) {
+        toast.error(
+          `Cannot block: room already booked from ` +
+          `${moment(bookingOverlap.start).format('YYYY-MM-DD')} to ` +
+          `${moment(bookingOverlap.end).format('YYYY-MM-DD')}`
+        );
+        return;
+      }
+
+      // Open block modal
       setBlockRoom(slotId);
       setBlockStart(startDate);
       setBlockEnd(endDate);
@@ -272,30 +330,28 @@ function CalendarScheduler() {
       setIsEditingBlock(false);
       setEditingBlockId(null);
       setBlockModalVisible(true);
+
     } else {
-      // Prevent booking on blocked ranges
-      const overlap = events.find(
-        (ev) =>
-          ev.type === 'block' &&
-          ev.resourceId === slotId &&
-          moment(start).isBefore(ev.end) &&
-          moment(end).isAfter(ev.start)
+      // Prevent booking if overlaps existing block
+      const blockOverlap = events.find(ev =>
+        ev.type === 'block' &&
+        ev.resourceId === slotId &&
+        moment(start).isBefore(moment(ev.end)) &&
+        moment(end).isAfter(moment(ev.start))
       );
-      if (overlap) {
+      if (blockOverlap) {
         toast.error(
-          `Cannot book: this room is blocked from ${moment(
-            overlap.start
-          ).format('YYYY-MM-DD')} to ${moment(overlap.end).format(
-            'YYYY-MM-DD'
-          )}`
+          `Cannot book: room blocked from ` +
+          `${moment(blockOverlap.start).format('YYYY-MM-DD')} to ` +
+          `${moment(blockOverlap.end).format('YYYY-MM-DD')}`
         );
         return;
       }
 
-      // Booking mode: set check-out one day after check-in
+      // Open booking modal
       setSelectedRoom(slotId);
       setBookingStart(startDate);
-      setBookingEnd(moment(start).add(1, 'days').format('YYYY-MM-DD'));
+      setBookingEnd(endDate);
       setSelectedGuest('');
       setGuestSearch('');
       setBookingStatus('tentative');
@@ -306,7 +362,7 @@ function CalendarScheduler() {
       setEditingGuestMode(false);
       setBookingModalVisible(true);
 
-      // Auto-open guest suggestions
+      // Auto-focus guest input
       setTimeout(() => {
         const input = guestInputRef.current?.querySelector('input');
         if (input) {
@@ -317,7 +373,9 @@ function CalendarScheduler() {
     }
   };
 
-  // Create or update booking
+  // ────────────────────────────────────────────────────────────
+  // Booking handlers: create/update, cancel, close modal
+  // ────────────────────────────────────────────────────────────
   const handleBookingSubmit = async (e) => {
     e.preventDefault();
     setBookingFormError('');
@@ -369,7 +427,6 @@ function CalendarScheduler() {
     }
   };
 
-  // Cancel booking (modal)
   const handleCancelBooking = async () => {
     if (!editingBookingId) return;
     showConfirm(
@@ -392,7 +449,6 @@ function CalendarScheduler() {
     );
   };
 
-  // Close booking modal & reset
   const closeBookingModal = () => {
     setBookingModalVisible(false);
     setIsEditingBooking(false);
@@ -410,7 +466,9 @@ function CalendarScheduler() {
     setBookingFormError('');
   };
 
-  // Create or update block
+  // ────────────────────────────────────────────────────────────
+  // Block handlers: create/update, unblock, close modal
+  // ────────────────────────────────────────────────────────────
   const handleBlockSubmit = async (e) => {
     e.preventDefault();
     setBlockFormError('');
@@ -458,7 +516,6 @@ function CalendarScheduler() {
     }
   };
 
-  // Unblock (modal)
   const handleUnblock = async () => {
     if (!editingBlockId) return;
     showConfirm(
@@ -481,7 +538,6 @@ function CalendarScheduler() {
     );
   };
 
-  // Close block modal
   const closeBlockModal = () => {
     setBlockModalVisible(false);
     setIsEditingBlock(false);
@@ -490,7 +546,9 @@ function CalendarScheduler() {
     setBlockFormError('');
   };
 
-  // Update booking on drag/resize
+  // ────────────────────────────────────────────────────────────
+  // Update booking on drag or resize
+  // ────────────────────────────────────────────────────────────
   const updateBooking = (id, body) =>
     fetchJSON(`/api/bookings/${id}`, {
       method: 'PUT',
@@ -521,7 +579,9 @@ function CalendarScheduler() {
     }
   };
 
-  // Render each event item
+  // ────────────────────────────────────────────────────────────
+  // Event item renderers: main template & popover
+  // ────────────────────────────────────────────────────────────
   const eventItemTemplateResolver = (
     sd,
     event,
@@ -583,7 +643,6 @@ function CalendarScheduler() {
     );
   };
 
-  // Hover popover
   const eventItemPopoverTemplateResolver = (
     sd,
     event,
@@ -642,7 +701,9 @@ function CalendarScheduler() {
     );
   };
 
-  // Toggle block-all dates
+  // ────────────────────────────────────────────────────────────
+  // Block-all toggle: block/unblock entire timeline
+  // ────────────────────────────────────────────────────────────
   const toggleBlockAll = async (roomId) => {
     const existing = events.find(
       (ev) => ev.resourceId === roomId && ev.title === 'All Dates'
@@ -672,7 +733,9 @@ function CalendarScheduler() {
     }
   };
 
-  // Double-click edit
+  // ────────────────────────────────────────────────────────────
+  // Double-click handler: open edit modal for booking or block
+  // ────────────────────────────────────────────────────────────
   const onEventDoubleClick = (sd, event) => {
     if (event.type === 'booking') {
       setSelectedRoom(event.resourceId);
@@ -709,7 +772,9 @@ function CalendarScheduler() {
     }
   };
 
+  // ────────────────────────────────────────────────────────────
   // Date navigation & view change
+  // ────────────────────────────────────────────────────────────
   const onViewChange = ({ viewType, showAgenda, isEventPerspective }) => {
     schedulerData.setViewType(viewType, showAgenda, isEventPerspective);
     setSchedulerData(schedulerData);
@@ -731,7 +796,9 @@ function CalendarScheduler() {
     loadData();
   };
 
-  // Mobile drag selection
+  // ────────────────────────────────────────────────────────────
+  // Mobile drag selection support
+  // ────────────────────────────────────────────────────────────
   const handleTouchEnd = (e) => {
     const el = document.elementFromPoint(
       e.changedTouches[0].clientX,
@@ -750,12 +817,16 @@ function CalendarScheduler() {
     }
   };
 
-  // Filter guests for autocomplete
+  // ────────────────────────────────────────────────────────────
+  // Guest autocomplete filtering
+  // ────────────────────────────────────────────────────────────
   const filteredGuests = guests.filter((g) =>
     g.name.toLowerCase().includes(guestSearch.toLowerCase())
   );
 
+  // ────────────────────────────────────────────────────────────
   // Add new guest
+  // ────────────────────────────────────────────────────────────
   const handleAddNewGuest = async () => {
     if (!newGuestName) {
       return setNewGuestError('Name is required');
@@ -780,7 +851,9 @@ function CalendarScheduler() {
     }
   };
 
-  // Open edit guest
+  // ────────────────────────────────────────────────────────────
+  // Open edit guest mode
+  // ────────────────────────────────────────────────────────────
   const openGuestEdit = (guest) => {
     setEditingGuestMode(true);
     setEditingGuestName(guest.name);
@@ -789,7 +862,9 @@ function CalendarScheduler() {
     setEditingGuestError('');
   };
 
+  // ────────────────────────────────────────────────────────────
   // Update guest
+  // ────────────────────────────────────────────────────────────
   const handleGuestUpdate = async () => {
     if (!editingGuestName) {
       return setEditingGuestError('Name is required');
@@ -824,17 +899,22 @@ function CalendarScheduler() {
     }
   };
 
+  // ────────────────────────────────────────────────────────────
+  // Render
+  // ────────────────────────────────────────────────────────────
   return (
     <div className="p-4 relative">
-      {/* Toast container */}
+      {/* Toast notifications container */}
       <ToastContainer position="top-right" autoClose={3000} />
 
+      {/* Header */}
       <h1 className="text-2xl font-bold mb-4">
         Booking & Block Calendar
       </h1>
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center mb-4 space-x-4">
+        {/* Hotel selector */}
         <div>
           <label className="mr-2 font-semibold">Hotel:</label>
           <select
@@ -851,6 +931,8 @@ function CalendarScheduler() {
             ))}
           </select>
         </div>
+
+        {/* Room type filter */}
         <div>
           <label className="mr-2 font-semibold">
             Room Type:
@@ -870,6 +952,8 @@ function CalendarScheduler() {
             ))}
           </select>
         </div>
+
+        {/* Prev/Next buttons */}
         <div className="flex space-x-2">
           <button
             onClick={onPrev}
@@ -884,6 +968,8 @@ function CalendarScheduler() {
             →
           </button>
         </div>
+
+        {/* View type selector */}
         <div>
           <select
             className="border px-2 py-1 rounded"
@@ -901,6 +987,8 @@ function CalendarScheduler() {
             <option value={ViewTypes.Day}>Day</option>
           </select>
         </div>
+
+        {/* Block mode toggle */}
         <div className="flex items-center ml-4">
           <input
             type="checkbox"
@@ -933,17 +1021,14 @@ function CalendarScheduler() {
             resources={resources}
             events={events}
             onViewChange={onViewChange}
-            onSelectDate={onSelectDate} 
+            onSelectDate={onSelectDate}
             moveEvent={onEventMove}
             newEvent={onSelectSlot}
             updateEventStart={onEventResize}
             updateEventEnd={onEventResize}
-            eventItemTemplateResolver={
-              eventItemTemplateResolver
-            }
-            eventItemPopoverTemplateResolver={
-              eventItemPopoverTemplateResolver
-            }
+            eventItemTemplateResolver={eventItemTemplateResolver}
+            eventItemPopoverTemplateResolver={eventItemPopoverTemplateResolver}
+            eventItemPopoverEnabled={false}
           />
         </div>
       )}
