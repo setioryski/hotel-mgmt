@@ -300,78 +300,87 @@ function CalendarScheduler() {
   // ────────────────────────────────────────────────────────────
   // Slot selection: handles both block-mode and booking-mode
   // ────────────────────────────────────────────────────────────
-  const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
-    const startDate = moment(start).format('YYYY-MM-DD');
-    const endDate = moment(end).format('YYYY-MM-DD');
+const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
+  const startDate = moment(start).format('YYYY-MM-DD');
+  const endDate = moment(end).format('YYYY-MM-DD');
 
-    if (isBlockMode) {
-      // Prevent blocking if overlaps existing booking
-      const bookingOverlap = events.find(ev =>
-        ev.type === 'booking' &&
-        ev.resourceId === slotId &&
-        moment(start).isBefore(moment(ev.end)) &&
-        moment(end).isAfter(moment(ev.start))
+  if (isBlockMode) {
+    // Prevent blocking if it overlaps an existing booking
+    const bookingOverlap = events.find(ev =>
+      ev.type === 'booking' &&
+      ev.resourceId === slotId &&
+      moment(start).isBefore(moment(ev.end)) &&
+      moment(end).isAfter(moment(ev.start))
+    );
+    if (bookingOverlap) {
+      toast.error(
+        `Cannot block: room already booked from ` +
+        `${moment(bookingOverlap.start).format('YYYY-MM-DD')} to ` +
+        `${moment(bookingOverlap.end).format('YYYY-MM-DD')}`
       );
-      if (bookingOverlap) {
-        toast.error(
-          `Cannot block: room already booked from ` +
-          `${moment(bookingOverlap.start).format('YYYY-MM-DD')} to ` +
-          `${moment(bookingOverlap.end).format('YYYY-MM-DD')}`
-        );
-        return;
-      }
+      return;
+    }
 
-      // Open block modal
-      setBlockRoom(slotId);
-      setBlockStart(startDate);
-      setBlockEnd(endDate);
-      setBlockReason('');
-      setBlockFormError('');
-      setIsEditingBlock(false);
-      setEditingBlockId(null);
-      setBlockModalVisible(true);
+    // Open block modal
+    setBlockRoom(slotId);
+    setBlockStart(startDate);
+    setBlockEnd(endDate);
+    setBlockReason('');
+    setBlockFormError('');
+    setIsEditingBlock(false);
+    setEditingBlockId(null);
+    setBlockModalVisible(true);
 
-    } else {
-      // Prevent booking if overlaps existing block
-      const blockOverlap = events.find(ev =>
-        ev.type === 'block' &&
-        ev.resourceId === slotId &&
-        moment(start).isBefore(moment(ev.end)) &&
-        moment(end).isAfter(moment(ev.start))
-      );
-      if (blockOverlap) {
+  } else {
+    // Prevent booking if it overlaps any existing block or booking
+    const overlap = events.find(ev =>
+      (ev.type === 'block' || ev.type === 'booking') &&
+      ev.resourceId === slotId &&
+      moment(start).isBefore(moment(ev.end)) &&
+      moment(end).isAfter(moment(ev.start))
+    );
+    if (overlap) {
+      if (overlap.type === 'block') {
         toast.error(
           `Cannot book: room blocked from ` +
-          `${moment(blockOverlap.start).format('YYYY-MM-DD')} to ` +
-          `${moment(blockOverlap.end).format('YYYY-MM-DD')}`
+          `${moment(overlap.start).format('YYYY-MM-DD')} to ` +
+          `${moment(overlap.end).format('YYYY-MM-DD')}`
         );
-        return;
+      } else {
+        toast.error(
+          `Cannot book: room already booked from ` +
+          `${moment(overlap.start).format('YYYY-MM-DD')} to ` +
+          `${moment(overlap.end).format('YYYY-MM-DD')}`
+        );
       }
-
-      // Open booking modal
-      setSelectedRoom(slotId);
-      setBookingStart(startDate);
-      setBookingEnd(endDate);
-      setSelectedGuest('');
-      setGuestSearch('');
-      setBookingStatus('tentative');
-      setBookingFormError('');
-      setIsEditingBooking(false);
-      setEditingBookingId(null);
-      setNewGuestMode(false);
-      setEditingGuestMode(false);
-      setBookingModalVisible(true);
-
-      // Auto-focus guest input
-      setTimeout(() => {
-        const input = guestInputRef.current?.querySelector('input');
-        if (input) {
-          input.focus();
-          setShowGuestSuggestions(true);
-        }
-      }, 0);
+      return;
     }
-  };
+
+    // Open booking modal
+    setSelectedRoom(slotId);
+    setBookingStart(startDate);
+    setBookingEnd(endDate);
+    setSelectedGuest('');
+    setGuestSearch('');
+    setBookingStatus('tentative');
+    setBookingFormError('');
+    setIsEditingBooking(false);
+    setEditingBookingId(null);
+    setNewGuestMode(false);
+    setEditingGuestMode(false);
+    setBookingModalVisible(true);
+
+    // Focus guest input and show suggestions
+    setTimeout(() => {
+      const input = guestInputRef.current?.querySelector('input');
+      if (input) {
+        input.focus();
+        setShowGuestSuggestions(true);
+      }
+    }, 0);
+  }
+};
+
 
   // ────────────────────────────────────────────────────────────
   // Booking handlers: create/update, cancel, close modal
