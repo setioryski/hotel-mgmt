@@ -15,17 +15,18 @@ import Room from './models/Room.js';
 import Guest from './models/Guest.js';
 import User from './models/User.js';
 import Booking from './models/Booking.js';
-import RoomBlock from './models/RoomBlock.js';      // <-- new
-// Note: Hotel, Room, Guest, User, Booking are already being imported in their controllers/models.
-// By importing RoomBlock here, Sequelize knows about the associations on sync.
+import RoomBlock from './models/RoomBlock.js';
 
+// Import API routes
 import authRoutes from './routes/authRoutes.js';
 import bookingRoutes from './routes/bookingRoutes.js';
 import guestRoutes from './routes/guestRoutes.js';
 import hotelRoutes from './routes/hotelRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
-import blockRoutes from './routes/blockRoutes.js'; // <-- new
+import blockRoutes from './routes/blockRoutes.js';
 
+// Import auth middlewares
+import { protect, authorize } from './middlewares/auth.js';
 import errorHandler from './middlewares/errorHandler.js';
 
 dotenv.config();
@@ -36,45 +37,97 @@ const app = express();
 await sequelize.sync({ alter: true });
 console.log('✅ Sequelize connected and synced');
 
-// Middleware
+// Body + Cookie parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// Serve static assets
+// Static assets
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname  = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, '../public')));
 
 // EJS + layouts
 app.set('views', path.join(__dirname, '../views'));
 app.set('view engine', 'ejs');
 app.use(expressLayouts);
-app.set('layout', 'layout');  // uses views/layout.ejs
+app.set('layout', 'layout');
 
-// API routes
+// --- API routes ---
 app.use('/api/auth',     authRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/guests',   guestRoutes);
 app.use('/api/hotels',   hotelRoutes);
 app.use('/api/rooms',    roomRoutes);
-app.use('/api/blocks',   blockRoutes); // <-- new
+app.use('/api/blocks',   blockRoutes);
 
-// Page (EJS) routes – now with explicit titles
+// --- Page routes (EJS) ---
 app.get('/', (req, res) =>
   res.redirect('/admin/dashboard')
 );
 
-app.get('/admin/dashboard', (req, res) =>
-  res.render('admin/dashboard', { title: 'Admin Dashboard' })
+app.get('/admin/dashboard',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/dashboard', { title: 'Admin Dashboard' })
 );
 
-app.get('/admin/hotels', (req, res) =>
-  res.render('admin/hotels', { title: 'Manage Hotels' })
+app.get(
+  '/admin/hotels',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/hotels', { title: 'Manage Hotels' })
 );
 
-app.get('/admin/calendar', (req, res) =>
-  res.render('admin/calendar', { title: 'Booking Calendar' })
+// — New: Manage this hotel’s rooms —
+app.get(
+  '/admin/hotels/:hotelId/rooms',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/hotel_rooms', {
+      title: 'Manage Rooms',
+      hotelId: req.params.hotelId
+    })
+);
+
+// — New: Manage this hotel’s guests —
+app.get(
+  '/admin/hotels/:hotelId/guests',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/hotel_guests', {
+      title: 'Manage Guests',
+      hotelId: req.params.hotelId
+    })
+);
+
+app.get(
+  '/admin/hotels/:hotelId/calendar',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/hotel_calendar', {
+      title: 'Booking Calendar',
+     hotelId: req.params.hotelId,
+    })
+);
+
+app.get('/admin/calendar',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/calendar', { title: 'Booking Calendar' })
+);
+
+app.get('/admin/rooms',
+  protect,
+  authorize('admin'),
+  (req, res) =>
+    res.render('admin/rooms', { title: 'Manage Rooms' })
 );
 
 app.get('/login', (req, res) =>

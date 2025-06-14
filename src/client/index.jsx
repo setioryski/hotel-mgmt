@@ -11,7 +11,7 @@ const DndCalendarScheduler = DragDropContext(HTML5Backend)(CalendarScheduler);
 
 ReactDOM.render(
   <React.StrictMode>
-    <DndCalendarScheduler />
+<DndCalendarScheduler initialHotelId={window.__INITIAL_HOTEL_ID__} />
   </React.StrictMode>,
   document.getElementById('root')
 );

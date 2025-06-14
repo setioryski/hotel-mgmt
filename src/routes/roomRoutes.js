@@ -1,32 +1,52 @@
+// src/routes/roomRoutes.js
+
 import express from 'express';
+import { body } from 'express-validator';
 import { protect, authorize } from '../middlewares/auth.js';
-import * as ctrl from '../controllers/roomController.js';
-import { body, query, param } from 'express-validator';
+import {
+  createRoom,
+  getRooms,
+  getRoom,
+  updateRoom,
+  deleteRoom,
+} from '../controllers/roomController.js';
 
 const router = express.Router();
+
+// All room-management routes require admin privileges
 router.use(protect, authorize('admin'));
 
-router.get(
-  '/',
-  [ query('hotel').optional().isString().withMessage('Invalid hotel ID') ],
-  ctrl.getRooms
-);
-
+// Create
 router.post(
   '/',
   [
-    body('number').notEmpty().withMessage('Room number is required'),
-    body('hotel').notEmpty().withMessage('Hotel ID is required'),
-    body('priceOverride').optional().isNumeric(),
-    body('status').optional().isIn(['available', 'maintenance']),
-    body('type').optional().isIn(['standard', 'deluxe', 'suite'])
+    body('hotel', 'Hotel is required').notEmpty(),
+    body('number', 'Room number is required').notEmpty(),
+    body('type', 'Room type is required').notEmpty(),
+    body('price', 'Price must be a decimal').isDecimal(),
+    body('status').optional().isIn(['available', 'booked']),
   ],
-  ctrl.createRoom
+  createRoom
 );
 
-router.route('/:id')
-  .get([ param('id').isString() ], ctrl.getRoom)
-  .put([ param('id').isString() ], ctrl.updateRoom)
-  .delete([ param('id').isString() ], ctrl.deleteRoom);
+// Read list + single
+router.get('/', getRooms);
+router.get('/:id', getRoom);
+
+// Update
+router.put(
+  '/:id',
+  [
+    body('hotel').optional().notEmpty(),
+    body('number').optional().notEmpty(),
+    body('type').optional().notEmpty(),
+    body('price').optional().isDecimal(),
+    body('status').optional().isIn(['available', 'booked']),
+  ],
+  updateRoom
+);
+
+// Delete
+router.delete('/:id', deleteRoom);
 
 export default router;

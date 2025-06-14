@@ -1,0 +1,155 @@
+<% title = 'Manage Guests' %>
+
+<a href="/admin/hotels" class="text-sm text-gray-600 hover:underline mb-4 inline-block">
+  ← Back to Hotels
+</a>
+
+<h1 class="text-2xl font-bold mb-4">Guests for Hotel #<%= hotelId %></h1>
+
+<button
+  id="newGuestBtn"
+  class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mb-4"
+>
+  + New Guest
+</button>
+
+<table class="min-w-full bg-white rounded shadow overflow-hidden">
+  <thead class="bg-gray-100">
+    <tr>
+      <th class="px-4 py-2">Name</th>
+      <th class="px-4 py-2">Email</th>
+      <th class="px-4 py-2">Phone</th>
+      <th class="px-4 py-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody id="guestsTable"></tbody>
+</table>
+
+<!-- Guest Modal -->
+<div
+  id="guestModal"
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50"
+>
+  <div class="bg-white p-6 rounded shadow w-96">
+    <h2 class="text-xl font-semibold mb-4" id="guestModalTitle">New Guest</h2>
+    <div id="guestFormError" class="text-red-600 mb-2 hidden"></div>
+    <form id="guestForm" class="space-y-4">
+      <div>
+        <label class="block font-medium">Name</label>
+        <input type="text" id="guestName" class="w-full border px-2 py-1 rounded" required />
+      </div>
+      <div>
+        <label class="block font-medium">Email</label>
+        <input type="email" id="guestEmail" class="w-full border px-2 py-1 rounded" />
+      </div>
+      <div>
+        <label class="block font-medium">Phone</label>
+        <input type="text" id="guestPhone" class="w-full border px-2 py-1 rounded" />
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button type="button" id="closeGuestModal" class="px-4 py-2 rounded border">Cancel</button>
+        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const hotelId        = '<%= hotelId %>';
+    const guestsTable    = document.getElementById('guestsTable');
+    const newGuestBtn    = document.getElementById('newGuestBtn');
+    const guestModal     = document.getElementById('guestModal');
+    const closeGuestBtn  = document.getElementById('closeGuestModal');
+    const guestForm      = document.getElementById('guestForm');
+    const guestModalTitle= document.getElementById('guestModalTitle');
+    const guestErr       = document.getElementById('guestFormError');
+    const guestName      = document.getElementById('guestName');
+    const guestEmail     = document.getElementById('guestEmail');
+    const guestPhone     = document.getElementById('guestPhone');
+
+    let isEditing = false;
+    let editingId = null;
+
+    async function loadGuests() {
+      // Optionally filter by hotel bookings; here we list all
+      const res    = await fetch('/api/guests');
+      const data   = await res.json();
+      guestsTable.innerHTML = data.map(g => `
+        <tr>
+          <td class="border px-4 py-2">${g.name}</td>
+          <td class="border px-4 py-2">${g.email || ''}</td>
+          <td class="border px-4 py-2">${g.phone || ''}</td>
+          <td class="border px-4 py-2 space-x-2">
+            <button data-id="${g.id}" class="editGuestBtn text-blue-600">Edit</button>
+            <button data-id="${g.id}" class="deleteGuestBtn text-red-600">Delete</button>
+          </td>
+        </tr>
+      `).join('');
+
+      document.querySelectorAll('.editGuestBtn').forEach(btn =>
+        btn.addEventListener('click', async e => {
+          const id = e.target.dataset.id;
+          const res = await fetch(`/api/guests/${id}`);
+          const g   = await res.json();
+          isEditing = true;
+          editingId = id;
+          guestModalTitle.textContent = 'Edit Guest';
+          guestErr.classList.add('hidden');
+
+          guestName.value  = g.name;
+          guestEmail.value = g.email || '';
+          guestPhone.value = g.phone || '';
+          guestModal.classList.remove('hidden');
+        })
+      );
+
+      document.querySelectorAll('.deleteGuestBtn').forEach(btn =>
+        btn.addEventListener('click', async e => {
+          if (!confirm('Delete this guest?')) return;
+          await fetch(`/api/guests/${e.target.dataset.id}`, { method: 'DELETE' });
+          loadGuests();
+        })
+      );
+    }
+
+    newGuestBtn.addEventListener('click', () => {
+      isEditing = false;
+      editingId = null;
+      guestModalTitle.textContent = 'New Guest';
+      guestErr.classList.add('hidden');
+      guestForm.reset();
+      guestModal.classList.remove('hidden');
+    });
+
+    closeGuestBtn.addEventListener('click', () => {
+      guestModal.classList.add('hidden');
+    });
+
+    guestForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      guestErr.classList.add('hidden');
+      const payload = {
+        name:  guestName.value,
+        email: guestEmail.value,
+        phone: guestPhone.value
+      };
+      try {
+        const url    = isEditing ? `/api/guests/${editingId}` : '/api/guests';
+        const method = isEditing ? 'PUT' : 'POST';
+        await fetch(url, {
+          method,
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify(payload)
+        });
+        guestModal.classList.add('hidden');
+        loadGuests();
+      } catch (err) {
+        guestErr.textContent = err.message || 'Error';
+        guestErr.classList.remove('hidden');
+      }
+    });
+
+    loadGuests();
+  });
+</script>
