@@ -109,11 +109,24 @@ app.get(
   '/admin/hotels/:hotelId/calendar',
   protect,
   authorize('admin'),
-  (req, res) =>
-    res.render('admin/hotel_calendar', {
-      title: 'Booking Calendar',
-     hotelId: req.params.hotelId,
-    })
+  async (req, res, next) => {
+    try {
+      // look up the hotel
+      const hotel = await Hotel.findByPk(req.params.hotelId);
+      if (!hotel) {
+        // render your 404 view if not found
+        return res.status(404).render('404', { title: 'Not Found' });
+      }
+      // pass both hotelId and hotelName
+      res.render('admin/hotel_calendar', {
+        title:     'Booking Calendar',
+        hotelId:   hotel.id,
+        hotelName: hotel.name,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 );
 
 app.get('/admin/calendar',

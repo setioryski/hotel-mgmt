@@ -52,7 +52,7 @@ const ConfirmModal = ({ visible, title, message, onConfirm, onCancel }) => {
 // ──────────────────────────────────────────────────────────────
 // CalendarScheduler: main booking/block calendar component
 // ──────────────────────────────────────────────────────────────
-function CalendarScheduler() {
+function CalendarScheduler({ initialHotelId }) {
 
   const [blockedRoomsAll, setBlockedRoomsAll] = useState([]);
   // ────────────────────────────────────────────────────────────
@@ -183,12 +183,16 @@ function CalendarScheduler() {
   // Initial data fetch: hotels & guests
   // ────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetchJSON('/api/hotels')
-      .then((data) => {
-        setHotels(data);
-        if (data.length) setSelectedHotel(data[0].id);
-      })
-      .catch((err) => console.error('Load hotels failed:', err));
+     fetchJSON('/api/hotels')
+       .then((data) => {
+         setHotels(data);
+        // If a hotelId was passed in, use that; otherwise fall back
+         const pick = data.find(h => h.id === initialHotelId) 
+                       ? initialHotelId 
+                      : (data.length && data[0].id);
+         setSelectedHotel(pick);
+       })
+       .catch((err) => console.error('Load hotels failed:', err));
   }, []);
   useEffect(() => {
     fetchJSON('/api/guests')
@@ -966,23 +970,7 @@ const toggleBlockAll = (roomId) => {
 
       {/* Toolbar */}
       <div className="flex flex-wrap items-center mb-4 space-x-4">
-        {/* Hotel selector */}
-        <div>
-          <label className="mr-2 font-semibold">Hotel:</label>
-          <select
-            className="border px-2 py-1 rounded"
-            value={selectedHotel || ''}
-            onChange={(e) =>
-              setSelectedHotel(e.target.value)
-            }
-          >
-            {hotels.map((h) => (
-              <option key={h.id} value={h.id}>
-                {h.name}
-              </option>
-            ))}
-          </select>
-        </div>
+
 
         {/* Room type filter */}
         <div>

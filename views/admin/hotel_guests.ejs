@@ -72,10 +72,10 @@
     let editingId = null;
 
     async function loadGuests() {
-      // Optionally filter by hotel bookings; here we list all
-      const res    = await fetch('/api/guests');
-      const data   = await res.json();
-      guestsTable.innerHTML = data.map(g => `
+      // Pass ?hotel= so back-end returns only that hotel’s guests
+      const res    = await fetch(`/api/guests?hotel=${hotelId}`);
+      const guests = await res.json();
+      guestsTable.innerHTML = guests.map(g => `
         <tr>
           <td class="border px-4 py-2">${g.name}</td>
           <td class="border px-4 py-2">${g.email || ''}</td>

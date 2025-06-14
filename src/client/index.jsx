@@ -4,14 +4,15 @@ import ReactDOM from 'react-dom';
 import { DragDropContext } from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
 import CalendarScheduler from './CalendarScheduler';
-import 'react-big-scheduler/lib/css/style.css';
 
-// wrap your scheduler in the legacy DnD context
 const DndCalendarScheduler = DragDropContext(HTML5Backend)(CalendarScheduler);
 
 ReactDOM.render(
   <React.StrictMode>
-<DndCalendarScheduler initialHotelId={window.__INITIAL_HOTEL_ID__} />
+    <DndCalendarScheduler
+      // parseInt or Number() turns the string literal into a real number
+      initialHotelId={Number(window.__INITIAL_HOTEL_ID__)}
+    />
   </React.StrictMode>,
   document.getElementById('root')
 );

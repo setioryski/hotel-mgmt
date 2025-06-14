@@ -5,16 +5,14 @@
 </a>
 
 <h1 class="text-2xl font-bold mb-4">
-  Calendar for Hotel #<%= hotelId %>
+  Calendar for <%= hotelName %>
 </h1>
 
-<!-- React root -->
 <div id="root"></div>
 
-<!-- Pass hotelId to the client code -->
 <script>
-  window.__INITIAL_HOTEL_ID__ = '<%= hotelId %>';
+  // Wrap the EJS tag in backticks so VSCode sees:
+  // window.__INITIAL_HOTEL_ID__ = `1`;
+  window.__INITIAL_HOTEL_ID__ = `<%= hotelId %>`;
 </script>
-
-<!-- Your bundled React + scheduler -->
 <script src="/js/client.bundle.js"></script>
