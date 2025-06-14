@@ -964,8 +964,8 @@ const toggleBlockAll = (roomId) => {
       <ToastContainer position="top-right" autoClose={3000} />
 
       {/* Header */}
-      <h1 className="text-2xl font-bold mb-4">
-        Booking & Block Calendar
+      <h1 className="text-2xl font-bold mb-4">  
+      {/*header here*/ }
       </h1>
 
       {/* Toolbar */}

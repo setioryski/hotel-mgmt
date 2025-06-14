@@ -129,19 +129,7 @@ app.get(
   }
 );
 
-app.get('/admin/calendar',
-  protect,
-  authorize('admin'),
-  (req, res) =>
-    res.render('admin/calendar', { title: 'Booking Calendar' })
-);
 
-app.get('/admin/rooms',
-  protect,
-  authorize('admin'),
-  (req, res) =>
-    res.render('admin/rooms', { title: 'Manage Rooms' })
-);
 
 app.get('/login', (req, res) =>
   res.render('auth/login', { title: 'Login' })
