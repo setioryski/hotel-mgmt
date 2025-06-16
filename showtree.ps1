@@ -1,19 +1,45 @@
-﻿param(
-  [string]$Path = ".",
-  [string[]]$Exclude = @("node_modules", ".git"),
-  [string]$Prefix = ""
+﻿<#
+  showtree.ps1 – ASCII tree (folder + file)
+  ----------------------------------------
+  Contoh:
+      .\showtree.ps1                       # tree lengkap direktori kerja
+      .\showtree.ps1 -Path src             # mulai di ./src
+      .\showtree.ps1 -Exclude node_modules # lewati folder tertentu
+#>
+
+[CmdletBinding()]
+param(
+    [string]      $Path    = ".",
+    [string[]]    $Exclude = @("node_modules", ".git"),
+    [string]      $Prefix  = ""
 )
 
-$items = Get-ChildItem -Path $Path -Force | Where-Object {
-  $_.PSIsContainer -and ($Exclude -notcontains $_.Name)
+function Show-Tree {
+    param(
+        [string]   $Root,
+        [string[]] $Excl,
+        [string]   $Pre
+    )
+
+    # ▸ Ambil daftar isi     (folder dulu → file) dan abaikan yang di-exclude
+    $entries = Get-ChildItem -LiteralPath $Root -Force |
+               Where-Object { $Excl -notcontains $_.Name } |
+               Sort-Object @{e={-not $_.PSIsContainer}}, Name
+
+    for ($i = 0; $i -lt $entries.Count; $i++) {
+        $entry   = $entries[$i]
+        $isLast  = $i -eq ($entries.Count - 1)
+        $branch  = if ($isLast) { '└── ' } else { '├── ' }
+
+        Write-Output "$Pre$branch$($entry.Name)"
+
+        # Kalau masih folder → rekursi lebih dalam
+        if ($entry.PSIsContainer) {
+            $newPre = $Pre + $( if ($isLast) { '    ' } else { '│   ' } )
+            Show-Tree -Root $entry.FullName -Excl $Excl -Pre $newPre
+        }
+    }
 }
 
-for ($i = 0; $i -lt $items.Count; $i++) {
-  $item = $items[$i]
-  $isLast = $i -eq $items.Count - 1
-  $connector = if ($isLast) { "└── " } else { "├── " }
-  Write-Output "$Prefix$connector$item"
-
-  $newPrefix = $Prefix + (if ($isLast) { "    " } else { "│   " })
-  & $MyInvocation.MyCommand.Path -Path $item.FullName -Exclude $Exclude -Prefix $newPrefix
-}
+# Kick-off
+Show-Tree -Root (Resolve-Path $Path) -Excl $Exclude -Pre $Prefix

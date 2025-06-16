@@ -1,7 +1,18 @@
 <% title = 'Manage Hotels' %>
 
 <div class="p-6">
-  <h1 class="text-2xl font-bold mb-4">Manage Hotels</h1>
+  <!-- Header with Add Hotel button -->
+  <div class="flex justify-between items-center mb-4">
+    <h1 class="text-2xl font-bold">Manage Hotels</h1>
+    <button
+      id="addHotelBtn"
+      class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
+    >
+      + Add Hotel
+    </button>
+  </div>
+
+  <!-- Hotels table -->
   <table class="min-w-full bg-white rounded shadow overflow-hidden">
     <thead class="bg-gray-100">
       <tr>
@@ -17,33 +28,199 @@
   </table>
 </div>
 
-<script>
-  document.addEventListener('DOMContentLoaded', async () => {
-    const table = document.getElementById('hotelsTable');
-    try {
-      const res    = await fetch('/api/hotels');
-      const hotels = await res.json();
+<!-- Create/Edit Hotel Modal -->
+<div
+  id="hotelModal"
+  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50"
+>
+  <div class="bg-white p-6 rounded shadow w-96">
+    <h2 id="modalTitle" class="text-xl font-semibold mb-4">Add Hotel</h2>
+    <form id="hotelForm" class="space-y-4">
+      <div>
+        <label for="hotelNameInput" class="block font-medium">Name</label>
+        <input
+          type="text"
+          id="hotelNameInput"
+          class="w-full border px-2 py-1 rounded"
+          required
+        />
+      </div>
+      <div>
+        <label for="hotelAddressInput" class="block font-medium">Address</label>
+        <input
+          type="text"
+          id="hotelAddressInput"
+          class="w-full border px-2 py-1 rounded"
+        />
+      </div>
+      <div>
+        <label for="hotelContactInput" class="block font-medium">Contact</label>
+        <input
+          type="text"
+          id="hotelContactInput"
+          class="w-full border px-2 py-1 rounded"
+        />
+      </div>
+      <div class="flex justify-end space-x-2">
+        <button
+          type="button"
+          id="cancelHotelBtn"
+          class="px-4 py-2 rounded border"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          id="saveHotelBtn"
+          class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
+        >
+          Save
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
 
-      table.innerHTML = hotels.map(h => `
-        <tr>
-          <td class="border px-4 py-2">${h.name}</td>
-          <td class="border px-4 py-2">${h.address || ''}</td>
-          <td class="border px-4 py-2">${h.contact || ''}</td>
-          <td class="border px-4 py-2 space-x-2">
-            <a href="/admin/hotels/${h.id}/rooms"    class="text-blue-600 hover:underline">Rooms</a> |
-            <a href="/admin/hotels/${h.id}/guests"   class="text-green-600 hover:underline">Guests</a> |
-            <a href="/admin/hotels/${h.id}/calendar" class="text-purple-600 hover:underline">Calendar</a>
-          </td>
-        </tr>
-      `).join('');
-    } catch (err) {
-      table.innerHTML = `
-        <tr>
-          <td colspan="4" class="text-red-600 p-4">
-            Failed to load hotels: ${err.message}
-          </td>
-        </tr>
-      `;
-    }
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const table = document.getElementById('hotelsTable');
+    const addBtn = document.getElementById('addHotelBtn');
+    const modal = document.getElementById('hotelModal');
+    const modalTitle = document.getElementById('modalTitle');
+    const form = document.getElementById('hotelForm');
+    const nameInput = document.getElementById('hotelNameInput');
+    const addressInput = document.getElementById('hotelAddressInput');
+    const contactInput = document.getElementById('hotelContactInput');
+    const cancelBtn = document.getElementById('cancelHotelBtn');
+
+    let currentHotelId = null;
+
+    // Fetch and render the list of hotels
+    const fetchHotels = async () => {
+      try {
+        const res = await fetch('/api/hotels', {
+          credentials: 'include'
+        });
+        const hotels = await res.json();
+        table.innerHTML = hotels.map(h => `
+          <tr>
+            <td class="border px-4 py-2">${h.name}</td>
+            <td class="border px-4 py-2">${h.address || ''}</td>
+            <td class="border px-4 py-2">${h.contact || ''}</td>
+            <td class="border px-4 py-2 space-x-2">
+              <a
+                href="/admin/hotels/${h.id}/rooms"
+                class="text-blue-600 hover:underline"
+              >Rooms</a> |
+              <a
+                href="/admin/hotels/${h.id}/guests"
+                class="text-green-600 hover:underline"
+              >Guests</a> |
+              <a
+                href="/admin/hotels/${h.id}/calendar"
+                class="text-purple-600 hover:underline"
+              >Calendar</a> |
+              <button
+                data-id="${h.id}"
+                class="editHotelBtn text-yellow-600 hover:underline"
+              >Edit</button>
+            </td>
+          </tr>
+        `).join('');
+      } catch (err) {
+        table.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-red-600 p-4">
+              Failed to load hotels: ${err.message}
+            </td>
+          </tr>
+        `;
+      }
+    };
+
+    // Open modal in create or edit mode
+    const openModal = (hotel) => {
+      if (hotel) {
+        currentHotelId = hotel.id;
+        modalTitle.textContent = 'Edit Hotel';
+        nameInput.value = hotel.name;
+        addressInput.value = hotel.address;
+        contactInput.value = hotel.contact;
+      } else {
+        currentHotelId = null;
+        modalTitle.textContent = 'Add Hotel';
+        nameInput.value = '';
+        addressInput.value = '';
+        contactInput.value = '';
+      }
+      modal.classList.remove('hidden');
+    };
+
+    // Close modal
+    const closeModal = () => {
+      modal.classList.add('hidden');
+    };
+
+    // Handlers
+    addBtn.addEventListener('click', () => openModal());
+    cancelBtn.addEventListener('click', closeModal);
+
+    // Delegate Edit button clicks
+    table.addEventListener('click', e => {
+      if (e.target.matches('.editHotelBtn')) {
+        const id = e.target.getAttribute('data-id');
+        // Grab existing values from row
+        const row = e.target.closest('tr');
+        const name = row.children[0].textContent;
+        const address = row.children[1].textContent;
+        const contact = row.children[2].textContent;
+        openModal({ id, name, address, contact });
+      }
+    });
+
+    // Form submission for create/update
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const payload = {
+        name: nameInput.value.trim(),
+        address: addressInput.value.trim(),
+        contact: contactInput.value.trim(),
+      };
+      try {
+        let res;
+        if (currentHotelId) {
+          // Update existing hotel
+          res = await fetch(`/api/hotels/${currentHotelId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+        } else {
+          // Create new hotel
+          res = await fetch('/api/hotels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify(payload),
+          });
+        }
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(
+            data.msg ||
+            (data.errors && data.errors.map(e => e.msg).join(', ')) ||
+            res.statusText
+          );
+        }
+        closeModal();
+        fetchHotels();
+      } catch (err) {
+        alert(`Error: ${err.message}`);
+      }
+    });
+
+    // Initial load
+    fetchHotels();
   });
 </script>
