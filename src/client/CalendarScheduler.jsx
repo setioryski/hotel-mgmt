@@ -116,7 +116,8 @@ function CalendarScheduler({ initialHotelId }) {
   const [bookingStatus, setBookingStatus] = useState('tentative');
   const [bookingFormError, setBookingFormError] = useState('');
   const [bookingPrice, setBookingPrice] = useState('');           // ← new
-  const [roomPrices, setRoomPrices] = useState({}); 
+  const [roomPrices, setRoomPrices] = useState({});
+  const [bookingTotal,     setBookingTotal]     = useState(''); 
 
   // ────────────────────────────────────────────────────────────
   // Block modal & form state
@@ -360,6 +361,20 @@ useEffect(() => {
   });
 }, [resources, blockedRoomsAll]);
 
+  // ────────────────────────────────────────────────────────────
+  // total books
+  // ────────────────────────────────────────────────────────────
+
+useEffect(() => {
+  // Calculate nights between check-in and check-out
+  const nights = bookingStart && bookingEnd
+    ? moment(bookingEnd).diff(moment(bookingStart), 'days')
+    : 0;
+  const perNight = parseFloat(bookingPrice) || 0;
+
+  // Set total = perNight × nights (two-decimal places)
+  setBookingTotal((perNight * nights).toFixed(2));
+}, [bookingPrice, bookingStart, bookingEnd]);
 
 
   // ────────────────────────────────────────────────────────────
@@ -482,7 +497,8 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
               startDate: startISO,
               endDate: endISO,
               status: bookingStatus,
-              price: bookingPrice,
+              price:      bookingPrice,
+              totalPrice: bookingTotal,
             }),
           }
         );
@@ -497,6 +513,7 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
             endDate: endISO,
             status: bookingStatus,
             price: bookingPrice,
+            totalPrice: bookingTotal,
           }),
         });
         toast.success('Booking created');
@@ -1295,12 +1312,31 @@ const toggleBlockAll = (roomId) => {
               {/* Price */}
               <div>
                 <label className="block font-medium">Price</label>
+                     <input type="number"
+       step="0.01"
+       className="w-full border px-2 py-1 rounded"
+       value={bookingPrice}
+       onChange={e => {
+         const newRate = e.target.value
+         setBookingPrice(newRate)
+         // Recalculate nights
+         const nights = bookingStart && bookingEnd
+           ? moment(bookingEnd).diff(moment(bookingStart), 'days')
+           : 0
+         // Update totalPrice immediately
+         setBookingTotal((parseFloat(newRate) * nights).toFixed(2))
+       }}
+    />
+              </div>
+
+              {/* Total (read-only) */}
+              <div className="mt-2">
+                <label className="block font-medium">Total Price</label>
                 <input
-                  type="number"
-                  step="0.01"
-                  className="w-full border px-2 py-1 rounded"
-                  value={bookingPrice}
-                  onChange={e => setBookingPrice(e.target.value)}
+                  type="text"
+                  className="w-full border px-2 py-1 rounded bg-gray-100 cursor-not-allowed"
+                  value={bookingTotal}
+                  readOnly
                 />
               </div>
 

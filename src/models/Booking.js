@@ -16,6 +16,10 @@ const Booking = sequelize.define('Booking', {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false,
   },
+    totalPrice: {
+    type: DataTypes.DECIMAL(10,2),
+    allowNull: false,       // full stay total
+  },
   status: {
     type: DataTypes.ENUM('tentative', 'booked', 'checkedin', 'checkedout', 'cancelled'),
     defaultValue: 'booked',
