@@ -115,6 +115,8 @@ function CalendarScheduler({ initialHotelId }) {
   const [bookingEnd, setBookingEnd] = useState('');
   const [bookingStatus, setBookingStatus] = useState('tentative');
   const [bookingFormError, setBookingFormError] = useState('');
+  const [bookingPrice, setBookingPrice] = useState('');           // ← new
+  const [roomPrices, setRoomPrices] = useState({}); 
 
   // ────────────────────────────────────────────────────────────
   // Block modal & form state
@@ -217,6 +219,12 @@ function CalendarScheduler({ initialHotelId }) {
           ? roomsResp
           : roomsResp.data || [];
         setRoomTypes([...new Set(rooms.map((r) => r.type))].sort());
+        
+        // Build a lookup of default prices by room id
+        const prices = {};
+        rooms.forEach(r => { prices[r.id] = r.price; });
+        setRoomPrices(prices);
+
         const filteredRooms = rooms.filter(
           (r) => selectedRoomType === 'all' || r.type === selectedRoomType
         );
@@ -270,6 +278,7 @@ const resourceList = filteredRooms.map((r) => {
             title: e.title,
             start: moment(e.start).format(DATE_FORMAT),
             end: moment(e.end).format(DATE_FORMAT),
+            price: e.price,
             bgColor,
             status: e.status,
             guestId: e.guestId,
@@ -421,6 +430,7 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
     setSelectedRoom(slotId);
     setBookingStart(startDate);
     setBookingEnd(endDate);
+    setBookingPrice(roomPrices[slotId] || ''); 
     setSelectedGuest('');
     setGuestSearch('');
     setBookingStatus('tentative');
@@ -472,6 +482,7 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
               startDate: startISO,
               endDate: endISO,
               status: bookingStatus,
+              price: bookingPrice,
             }),
           }
         );
@@ -485,6 +496,7 @@ const onSelectSlot = (schedulerData, slotId, slotName, start, end) => {
             startDate: startISO,
             endDate: endISO,
             status: bookingStatus,
+            price: bookingPrice,
           }),
         });
         toast.success('Booking created');
@@ -797,7 +809,9 @@ const toggleBlockAll = (roomId) => {
       setSelectedRoom(event.resourceId);
       setBookingStart(moment(event.start).format('YYYY-MM-DD'));
       setBookingEnd(moment(event.end).format('YYYY-MM-DD'));
+      setBookingPrice(roomPrices[event.resourceId] || '');
       setBookingStatus(event.status);
+      setBookingPrice(event.price ?? '');
       setBookingFormError('');
       setSelectedGuest(event.guestId || '');
       setGuestSearch(event.title || '');
@@ -1277,6 +1291,18 @@ const toggleBlockAll = (roomId) => {
                   )}
                 </div>
               )}
+
+              {/* Price */}
+              <div>
+                <label className="block font-medium">Price</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="w-full border px-2 py-1 rounded"
+                  value={bookingPrice}
+                  onChange={e => setBookingPrice(e.target.value)}
+                />
+              </div>
 
               {/* Dates */}
               <div>

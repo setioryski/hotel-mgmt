@@ -11,7 +11,7 @@ const ALLOWED_INITIAL_STATUSES = ['tentative', 'booked'];
  */
 export const createBooking = async (req, res, next) => {
   try {
-    const { room, guest, startDate, endDate, status } = req.body;
+    const { room, guest, startDate, endDate, status, price: overridePrice } = req.body;
 
     // 1. Validate Room & Guest exist
     const roomDoc = await Room.findByPk(room, { include: Hotel });
@@ -27,8 +27,6 @@ export const createBooking = async (req, res, next) => {
     }
 
     // 3. Check for overlap, ignoring any cancelled bookings.
-    //    Allow new bookings to start exactly on an existing booking's endDate (treated as checkout).
-    //    Overlap if: existing.startDate < newEnd  AND existing.endDate > newStart
     const overlap = await Booking.findOne({
       where: {
         RoomId: room,
@@ -37,27 +35,29 @@ export const createBooking = async (req, res, next) => {
         endDate: { [Op.gt]: startDate },
       },
     });
-
     if (overlap) {
       return res.status(400).json({ msg: 'Double booking' });
     }
 
-    // 4. Calculate price (unchanged)
+    // 4. Calculate default price (seasonal multipliers + room override)
     const nights = (new Date(endDate) - new Date(startDate)) / 86400000;
     const month = new Date(startDate).getMonth() + 1;
-    const seasonal =
-      roomDoc.Hotel.seasonalMultipliers?.find((m) => m.month === month)?.multiplier ||
-      1;
-    const override = roomDoc.priceOverride || 0;
-    const price = (roomDoc.Hotel.basePrice * seasonal + override) * nights;
+    const seasonal = roomDoc.Hotel.seasonalMultipliers?.find(m => m.month === month)?.multiplier || 1;
+    const overrideRoomPrice = roomDoc.priceOverride || 0;
+    const defaultPrice = (roomDoc.Hotel.basePrice * seasonal + overrideRoomPrice) * nights;
 
-    // 5. Create the booking with chosen status
+    // 5. Use admin-entered price if provided, else default
+    const finalPrice = overridePrice !== undefined
+      ? parseFloat(overridePrice)
+      : defaultPrice;
+
+    // 6. Create the booking
     const booking = await Booking.create({
       RoomId: room,
       GuestId: guest,
       startDate,
       endDate,
-      price,
+      price: finalPrice,
       status: bookingStatus,
     });
 
@@ -72,32 +72,24 @@ export const createBooking = async (req, res, next) => {
  */
 export const getBookings = async (req, res, next) => {
   try {
-    // 1. Base filter: exclude cancelled bookings
     const where = { status: { [Op.ne]: 'cancelled' } };
-
-    // 2. If hotel filter provided, fetch only rooms for that hotel
     if (req.query.hotel) {
       const roomIds = await Room.findAll({
         where: { HotelId: req.query.hotel },
         attributes: ['id'],
-      }).then((rooms) => rooms.map((r) => r.id));
-
+      }).then(rooms => rooms.map(r => r.id));
       where.RoomId = { [Op.in]: roomIds };
     }
-
-    // 3. Fetch all non-cancelled bookings, including Room & Guest
     const bookings = await Booking.findAll({
       where,
       include: [Room, Guest],
     });
 
-    // 4. Map into scheduler format, with bgColor based on status
-    const payload = bookings.map((b) => {
-      let bgColor = '#3B82F6'; // default BLUE ('booked')
-      if (b.status === 'tentative') bgColor = '#FBBF24'; // YELLOW
-      else if (b.status === 'checkedin') bgColor = '#10B981'; // GREEN
-      else if (b.status === 'checkedout') bgColor = '#EF4444'; // RED
-      // 'booked' stays BLUE; 'cancelled' would be filtered out
+    const payload = bookings.map(b => {
+      let bgColor = '#3B82F6'; // default BLUE
+      if (b.status === 'tentative') bgColor = '#FBBF24';
+      else if (b.status === 'checkedin') bgColor = '#10B981';
+      else if (b.status === 'checkedout') bgColor = '#EF4444';
 
       return {
         id: b.id,
@@ -105,6 +97,7 @@ export const getBookings = async (req, res, next) => {
         title: b.Guest?.name || 'Guest',
         start: b.startDate,
         end: b.endDate,
+        price:      b.price, 
         bgColor,
         status: b.status,
         guestId: b.Guest?.id || null,
@@ -118,7 +111,7 @@ export const getBookings = async (req, res, next) => {
 };
 
 /**
- * Update an existing booking. Allows changing dates, room, or status.
+ * Update an existing booking. Allows changing dates, room, status, or price.
  */
 export const updateBooking = async (req, res, next) => {
   try {
@@ -127,15 +120,13 @@ export const updateBooking = async (req, res, next) => {
       return res.status(404).json({ msg: 'Booking not found' });
     }
 
-    const { room, startDate, endDate, status } = req.body;
+    const { room, startDate, endDate, status, price: overridePrice } = req.body;
 
-    // 1. If room or dates are being changed, re-check overlaps
+    // 1. If room or dates are changed, re-check overlaps
     if (room !== undefined || startDate !== undefined || endDate !== undefined) {
       const newRoomId = room !== undefined ? room : booking.RoomId;
       const newStart = startDate !== undefined ? startDate : booking.startDate;
       const newEnd = endDate !== undefined ? endDate : booking.endDate;
-
-      // Overlap logic with endDate exclusive:
       const overlap = await Booking.findOne({
         where: {
           id: { [Op.ne]: booking.id },
@@ -145,7 +136,6 @@ export const updateBooking = async (req, res, next) => {
           endDate: { [Op.gt]: newStart },
         },
       });
-
       if (overlap) {
         return res.status(400).json({ msg: 'Double booking' });
       }
@@ -155,14 +145,16 @@ export const updateBooking = async (req, res, next) => {
     const allStatuses = ['tentative', 'booked', 'checkedin', 'checkedout', 'cancelled'];
     const newStatus = status && allStatuses.includes(status) ? status : booking.status;
 
-    // 3. Perform update
-    await booking.update({
+    // 3. Prepare updated fields
+    const updateData = {
       RoomId: room !== undefined ? room : booking.RoomId,
       startDate: startDate !== undefined ? startDate : booking.startDate,
       endDate: endDate !== undefined ? endDate : booking.endDate,
       status: newStatus,
-    });
+      ...(overridePrice !== undefined && { price: parseFloat(overridePrice) }),
+    };
 
+    await booking.update(updateData);
     return res.json(booking);
   } catch (err) {
     next(err);
@@ -179,7 +171,6 @@ export const cancelBooking = async (req, res, next) => {
       return res.status(404).json({ msg: 'Booking not found' });
     }
 
-    // Mark as cancelled; getBookings will filter it out
     await booking.update({ status: 'cancelled' });
     return res.json({ msg: 'Booking cancelled', booking });
   } catch (err) {

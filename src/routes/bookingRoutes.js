@@ -19,7 +19,8 @@ router.post(
     body('room').isString().withMessage('Room ID must be a string'),
     body('guest').isString().withMessage('Guest ID must be a string'),
     body('startDate').isISO8601(),
-    body('endDate').isISO8601()
+    body('endDate').isISO8601(),
+    body('price', 'Price must be a decimal').isDecimal()
   ],
   ctrl.createBooking
 );
