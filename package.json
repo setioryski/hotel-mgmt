@@ -9,7 +9,7 @@
     "seed": "node src/seed/seed.js",
     "drop": "node src/seed/drop.js",
     "build:client": "webpack --config webpack.config.cjs",
-    "watch:client": "webpack --config webpack.config.js --watch"
+    "watch:client": "webpack --config webpack.config.cjs --watch"
   },
   "dependencies": {
     "bcrypt": "^5.1.0",

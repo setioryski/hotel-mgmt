@@ -378,12 +378,17 @@ function CalendarScheduler({ initialHotelId }) {
     if (moment(mobileCheckin).isSameOrAfter(moment(mobileCheckout))) {
       return toast.error('Check-out date must be after check-in date.');
     }
+    // FIX: Pass the raw checkout date to onSelectSlot.
+    // The check-out day is not part of the stay. The `onSelectSlot` function
+    // will open a modal where the precise check-out time (e.g., 11:59) is set
+    // before final submission. Passing a specific time from here was causing
+    // the overlap logic to incorrectly fail for back-to-back bookings.
     onSelectSlot(
       schedulerData,
       mobileBookingRoom.id,
       null,
       `${mobileCheckin} 00:00:00`,
-      `${mobileCheckout} 00:00:00`
+      mobileCheckout // Pass only the date, which moment interprets as the start of the day (00:00:00)
     );
   };
 
@@ -396,6 +401,7 @@ function CalendarScheduler({ initialHotelId }) {
       return;
     }
     const startDate = moment(start).format('YYYY-MM-DD');
+    // For end date, handle cases where time is not present (like from mobile fix)
     const endDate = moment(end).format('YYYY-MM-DD');
 
     if (isBlockMode) {
@@ -464,7 +470,7 @@ function CalendarScheduler({ initialHotelId }) {
     if (!selectedRoom) return setBookingFormError('Please select a room.');
     if (!selectedGuest) return setBookingFormError('Please select a guest.');
     const startISO = `${bookingStart}T12:00:00`;
-    const endISO = `${bookingEnd}T12:00:00`;
+    const endISO = `${bookingEnd}T11:59:00`;
     if (new Date(startISO) >= new Date(endISO)) {
       return setBookingFormError('Check-out must be after check-in.');
     }
@@ -549,8 +555,8 @@ function CalendarScheduler({ initialHotelId }) {
     e.preventDefault();
     setBlockFormError('');
     if (!blockRoom) return setBlockFormError('Please select a room.');
-    const startISO = `${blockStart}T00:00:00`;
-    const endISO = `${blockEnd}T23:59:59`;
+    const startISO = `${blockStart}T12:00:00`;
+    const endISO = `${blockEnd}T11:59:00`;
     if (new Date(startISO) >= new Date(endISO)) {
       return setBlockFormError('Block end must be after block start.');
     }
