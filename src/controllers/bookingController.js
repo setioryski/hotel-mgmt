@@ -21,6 +21,7 @@ export const createBooking = async (req, res, next) => {
       status,
       price: overrideRate,
       totalPrice: overrideTotal,
+      notes, // ADDED: Destructure notes from body
     } = req.body;
 
     // 1. Validate existence
@@ -71,6 +72,7 @@ export const createBooking = async (req, res, next) => {
       price:      finalRate,
       totalPrice: finalTotal,
       status:     bookingStatus,
+      notes:      notes, // ADDED: Save notes
     });
 
     return res.status(201).json(booking);
@@ -115,6 +117,7 @@ export const getBookings = async (req, res, next) => {
         bgColor,
         status:     b.status,
         guestId:    b.Guest?.id || null,
+        notes:      b.notes, // ADDED: Include notes in payload
       };
     });
 
@@ -136,12 +139,13 @@ export const updateBooking = async (req, res, next) => {
 
     const {
       room,
-      guest, // MODIFICATION: Changed from guestId to guest for consistency.
+      guestId,           // ← support for changing guest
       startDate,
       endDate,
       status,
       price: overrideRate,
       totalPrice: overrideTotal,
+      notes, // ADDED: Destructure notes from body
     } = req.body;
 
     // 1. Overlap re-check if changing room/dates
@@ -168,8 +172,7 @@ export const updateBooking = async (req, res, next) => {
     const newStatus = status && allStatuses.includes(status) ? status : booking.status;
 
     // 3. Compute new guest ID (fall back to existing if none provided)
-    // MODIFICATION: Use the 'guest' field from the request body.
-    const newGuestId = guest !== undefined ? guest : booking.GuestId;
+    const newGuestId = guestId !== undefined ? guestId : booking.GuestId;
 
     // 4. Apply updates—including guest change
     await booking.update({
@@ -178,6 +181,7 @@ export const updateBooking = async (req, res, next) => {
       startDate:  startDate !== undefined ? startDate : booking.startDate,
       endDate:    endDate   !== undefined ? endDate   : booking.endDate,
       status:     newStatus,
+      notes:      notes     !== undefined ? notes     : booking.notes, // ADDED: Update notes
       ...(overrideRate  !== undefined && { price:      parseFloat(overrideRate) }),
       ...(overrideTotal !== undefined && { totalPrice: parseFloat(overrideTotal) }),
     });

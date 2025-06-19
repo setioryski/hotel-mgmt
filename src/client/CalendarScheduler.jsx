@@ -92,6 +92,7 @@ function CalendarScheduler({ initialHotelId }) {
   const [bookingPrice, setBookingPrice] = useState('');
   const [roomPrices, setRoomPrices] = useState({});
   const [bookingTotal, setBookingTotal] = useState('');
+  const [bookingNotes, setBookingNotes] = useState(''); // ADDED: State for booking notes
 
   // Block modal & form state
   const [blockModalVisible, setBlockModalVisible] = useState(false);
@@ -352,9 +353,14 @@ function CalendarScheduler({ initialHotelId }) {
     }
     
     const bookingData = {
-        room: selectedRoom, guest: selectedGuest,
-        startDate: startISO, endDate: endISO,
-        status: bookingStatus, price: bookingPrice, totalPrice: bookingTotal,
+        room: selectedRoom,
+        guest: selectedGuest,
+        startDate: startISO,
+        endDate: endISO,
+        status: bookingStatus,
+        price: bookingPrice,
+        totalPrice: bookingTotal,
+        notes: bookingNotes, // ADDED: Include notes in booking data
     };
 
     try {
@@ -404,6 +410,7 @@ function CalendarScheduler({ initialHotelId }) {
     setEditingGuestPhone('');
     setEditingGuestError('');
     setBookingFormError('');
+    setBookingNotes(''); // ADDED: Clear notes on close
   };
 
   // ────────────────────────────────────────────────────────────
@@ -509,10 +516,16 @@ function CalendarScheduler({ initialHotelId }) {
       const formattedTotalPrice = event.totalPrice ? Math.round(parseFloat(event.totalPrice)).toLocaleString('id-ID') : 'N/A';
 
       tooltipText = [
-        `Guest: ${event.title}`, `Email: ${guestEmail}`, `Phone: ${guestPhone}`,
-        `Check-In: ${checkin}`, `Check-Out: ${checkout}`, `Duration: ${numDays} night(s)`,
-        `Total Price: ${formattedTotalPrice}`, `Status: ${event.status}`,
+        `Guest: ${event.title}`,
+        `Email: ${guestEmail}`,
+        `Phone: ${guestPhone}`,
+        `Check-In: ${checkin}`,
+        `Check-Out: ${checkout}`,
+        `Duration: ${numDays} night(s)`,
+        `Total Price: ${formattedTotalPrice}`,
+        `Status: ${event.status}`,
         `Guest Booking Count: ${bookingCount}`,
+        event.notes ? `\nNotes: ${event.notes}` : '', // ADDED: Display notes in tooltip
       ].join('\n');
     } else {
       tooltipText = `Block: ${event.title}\nFrom: ${moment(event.start).format('YYYY-MM-DD')}\nTo: ${moment(event.end).format('YYYY-MM-DD')}`;
@@ -564,6 +577,7 @@ function CalendarScheduler({ initialHotelId }) {
       setEditingBookingId(event.id);
       setNewGuestMode(false);
       setEditingGuestMode(false);
+      setBookingNotes(event.notes || ''); // ADDED: Set notes when editing
       setBookingModalVisible(true);
     } else { // This is a block event
       setBlockRoom(event.resourceId);
@@ -746,6 +760,8 @@ function CalendarScheduler({ initialHotelId }) {
         setBookingEnd={setBookingEnd}
         bookingStatus={bookingStatus}
         setBookingStatus={setBookingStatus}
+        bookingNotes={bookingNotes} // ADDED: Pass notes state
+        setBookingNotes={setBookingNotes} // ADDED: Pass notes setter
       />
 
       <BlockModal

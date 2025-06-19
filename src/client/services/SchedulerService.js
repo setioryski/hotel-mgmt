@@ -43,6 +43,7 @@ export class SchedulerService {
             end: moment(e.end).format(DATE_FORMAT),
             bgColor, status: e.status, guestId: e.guestId,
             price: e.price, totalPrice: e.totalPrice, type: 'booking',
+            notes: e.notes, // ADDED: Pass notes to event object
         };
     });
 

@@ -1,3 +1,5 @@
+// src/models/Booking.js
+
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/sequelize.js';
 import Room from './Room.js';
@@ -23,6 +25,11 @@ const Booking = sequelize.define('Booking', {
   status: {
     type: DataTypes.ENUM('tentative', 'booked', 'checkedin', 'checkedout', 'cancelled'),
     defaultValue: 'booked',
+  },
+  // ADDED: notes field for booking
+  notes: {
+    type: DataTypes.TEXT,
+    allowNull: true,
   },
 });
 
