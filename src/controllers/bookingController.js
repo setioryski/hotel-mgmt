@@ -136,7 +136,7 @@ export const updateBooking = async (req, res, next) => {
 
     const {
       room,
-      guestId,           // ← support for changing guest
+      guest, // MODIFICATION: Changed from guestId to guest for consistency.
       startDate,
       endDate,
       status,
@@ -168,7 +168,8 @@ export const updateBooking = async (req, res, next) => {
     const newStatus = status && allStatuses.includes(status) ? status : booking.status;
 
     // 3. Compute new guest ID (fall back to existing if none provided)
-    const newGuestId = guestId !== undefined ? guestId : booking.GuestId;
+    // MODIFICATION: Use the 'guest' field from the request body.
+    const newGuestId = guest !== undefined ? guest : booking.GuestId;
 
     // 4. Apply updates—including guest change
     await booking.update({
