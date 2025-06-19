@@ -1,3 +1,5 @@
+// src/controllers/bookingController.js
+
 import { Op } from 'sequelize';
 import Booking from '../models/Booking.js';
 import Guest from '../models/Guest.js';
@@ -123,7 +125,7 @@ export const getBookings = async (req, res, next) => {
 };
 
 /**
- * Update an existing booking: dates, room, status, nightly rate, or totalPrice.
+ * Update an existing booking: dates, room, guest, status, nightly rate, or totalPrice.
  */
 export const updateBooking = async (req, res, next) => {
   try {
@@ -134,6 +136,7 @@ export const updateBooking = async (req, res, next) => {
 
     const {
       room,
+      guestId,           // ← support for changing guest
       startDate,
       endDate,
       status,
@@ -164,9 +167,13 @@ export const updateBooking = async (req, res, next) => {
     const allStatuses = ['tentative', 'booked', 'checkedin', 'checkedout', 'cancelled'];
     const newStatus = status && allStatuses.includes(status) ? status : booking.status;
 
-    // 3. Apply updates, including overrides
+    // 3. Compute new guest ID (fall back to existing if none provided)
+    const newGuestId = guestId !== undefined ? guestId : booking.GuestId;
+
+    // 4. Apply updates—including guest change
     await booking.update({
       RoomId:     room      !== undefined ? room      : booking.RoomId,
+      GuestId:    newGuestId,
       startDate:  startDate !== undefined ? startDate : booking.startDate,
       endDate:    endDate   !== undefined ? endDate   : booking.endDate,
       status:     newStatus,

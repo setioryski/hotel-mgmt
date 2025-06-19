@@ -284,6 +284,7 @@ function CalendarScheduler({ initialHotelId }) {
             start: moment(e.start).format(DATE_FORMAT),
             end: moment(e.end).format(DATE_FORMAT),
             price: e.price,
+            totalPrice: e.totalPrice,
             bgColor,
             status: e.status,
             guestId: e.guestId,
@@ -402,7 +403,7 @@ function CalendarScheduler({ initialHotelId }) {
     }
     const startDate = moment(start).format('YYYY-MM-DD');
     // For end date, handle cases where time is not present (like from mobile fix)
-    const endDate = moment(end).format('YYYY-MM-DD');
+    let endDate = moment(end).format('YYYY-MM-DD');
 
     if (isBlockMode) {
       const bookingOverlap = events.find(
@@ -436,6 +437,13 @@ function CalendarScheduler({ initialHotelId }) {
         toast.error(`Cannot book: room is already occupied or blocked.`);
         return;
       }
+      
+      // If the selection results in the same start and end day, set checkout to the next day.
+      // This is common for single-clicks or short drags in Day/Week view.
+      if (moment(endDate).isSameOrBefore(moment(startDate))) {
+        endDate = moment(startDate).add(1, 'days').format('YYYY-MM-DD');
+      }
+
       setSelectedRoom(slotId);
       setBookingStart(startDate);
       setBookingEnd(endDate);
@@ -653,22 +661,46 @@ function CalendarScheduler({ initialHotelId }) {
 
   const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
     let bgColor = event.bgColor;
-    const borderWidth = status === 'start' ? 4 : 1;
-    const mustBeHeight = status === 'start' ? 28 : 22;
+    const borderWidth = 2;
+    const mustBeHeight = 28;
+    
+    let tooltipText = '';
+    if (event.type === 'booking') {
+      const checkin = moment(event.start).format('YYYY-MM-DD');
+      const checkout = moment(event.end).format('YYYY-MM-DD');
+      const numDays = moment(checkout).diff(moment(checkin), 'days');
+      const guestBookings = events.filter(
+        (e) => e.type === 'booking' && e.guestId === event.guestId
+      );
+      const guest = guests.find((g) => g.id === event.guestId);
+      const guestEmail = guest?.email || 'N/A';
+      const guestPhone = guest?.phone || 'N/A';
+      const bookingCount = guestBookings.length;
+      const formattedTotalPrice = event.totalPrice
+        ? Math.round(parseFloat(event.totalPrice)).toLocaleString('id-ID')
+        : 'N/A';
+
+      tooltipText = [
+        `Guest: ${event.title}`,
+        `Email: ${guestEmail}`,
+        `Phone: ${guestPhone}`,
+        `Check-In: ${checkin}`,
+        `Check-Out: ${checkout}`,
+        `Duration: ${numDays} night(s)`,
+        `Total Price: ${formattedTotalPrice}`,
+        `Status: ${event.status}`,
+        `Guest Booking Count: ${bookingCount}`,
+      ].join('\n');
+    } else {
+      tooltipText = `Block: ${event.title}\nFrom: ${moment(event.start).format(
+        'YYYY-MM-DD'
+      )}\nTo: ${moment(event.end).format('YYYY-MM-DD')}`;
+    }
+
     return (
       <div
         key={event.id}
-        title={
-          event.type === 'booking'
-            ? `Guest: ${event.title}\nCheck-In: ${moment(event.start).format(
-                'YYYY-MM-DD'
-              )}\nCheck-Out: ${moment(event.end).format(
-                'YYYY-MM-DD'
-              )}\nStatus: ${event.status}`
-            : `Block: ${event.title}\nFrom: ${moment(event.start).format(
-                'YYYY-MM-DD'
-              )}\nTo: ${moment(event.end).format('YYYY-MM-DD')}`
-        }
+        title={tooltipText}
         style={{
           borderLeft: `${borderWidth}px solid ${bgColor}`,
           backgroundColor: bgColor,
