@@ -10,8 +10,8 @@ import Guest from '../models/Guest.js';
 
 /**
  * GET /api/accountings?hotel=:hotelId
- * Returns both persisted accounting entries and, for any booking
- * without one, a generated “income” entry.
+ * Returns all accounting entries for a hotel from the database.
+ * Automatically creates and persists income entries for any bookings that are missing one.
  */
 export const getEntries = async (req, res, next) => {
   try {
@@ -31,12 +31,7 @@ export const getEntries = async (req, res, next) => {
     });
     const roomIds = rooms.map(r => r.id);
 
-    // 2. Persisted entries for this hotel
-    const persisted = await AccountingEntry.findAll({
-      where: { HotelId: hotelId }
-    });
-
-    // 3. All non-cancelled bookings for those rooms
+    // 2. All non-cancelled bookings for those rooms
     const bookings = await Booking.findAll({
       where: {
         RoomId: { [Op.in]: roomIds },
@@ -45,44 +40,44 @@ export const getEntries = async (req, res, next) => {
       include: [{ model: Guest, attributes: ['name'] }]
     });
 
-    // 4. Determine which bookings already have an entry
-    const accounted = new Set(
-      persisted
-        .filter(e => e.BookingId)
-        .map(e => e.BookingId.toString())
-    );
+    // 3. Find which bookings already have a persisted entry
+    const bookingIdsWithEntries = await AccountingEntry.findAll({
+      where: {
+        BookingId: { [Op.in]: bookings.map(b => b.id) }
+      },
+      attributes: ['BookingId']
+    }).then(entries => new Set(entries.map(e => e.BookingId.toString())));
 
-    // 5. Generate entries for un-accounted bookings
-    const generated = bookings
-      .filter(b => !accounted.has(b.id.toString()))
+    // 4. Filter for bookings that do NOT have an entry and create them
+    const newEntriesToCreate = bookings
+      .filter(b => !bookingIdsWithEntries.has(b.id.toString()))
       .map(b => ({
-        id:          null,
         BookingId:   b.id,
         HotelId:     hotelId,
         type:        'income',
         amount:      parseFloat(b.totalPrice),
         description: `Booking #${b.id} (${b.Guest?.name || 'Guest'})`,
         date:        b.startDate,
-        _generated:  true
       }));
 
-    // 6. Mark persisted entries
-    const persistedWithFlag = persisted.map(e => {
-      const obj = e.toJSON();
-      obj._generated = false;
-      return obj;
+    if (newEntriesToCreate.length > 0) {
+      await AccountingEntry.bulkCreate(newEntriesToCreate);
+    }
+
+    // 5. Fetch ALL entries for the hotel (now including the newly created ones)
+    const allEntries = await AccountingEntry.findAll({
+      where: { HotelId: hotelId },
+      order: [['date', 'DESC']]
     });
 
-    // 7. Merge, sort by date desc
-    const allEntries = persistedWithFlag
-      .concat(generated)
-      .sort((a, b) => new Date(b.date) - new Date(a.date));
-
+    // 6. Return the complete, clean list from the database
     return res.json(allEntries);
+
   } catch (err) {
     next(err);
   }
 };
+
 
 /**
  * POST /api/accountings?hotel=:hotelId

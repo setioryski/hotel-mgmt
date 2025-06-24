@@ -62,6 +62,7 @@ app.use('/api/guests',   guestRoutes);
 app.use('/api/hotels',   hotelRoutes);
 app.use('/api/rooms',    roomRoutes);
 app.use('/api/blocks',   blockRoutes);
+app.use('/api/accountings', accountingRoutes);
 
 // --- Page routes (EJS) ---
 app.get('/', (req, res) =>
@@ -137,8 +138,9 @@ app.get(
   authorize('admin'),
   async (req, res, next) => {
     const hotel = await Hotel.findByPk(req.params.hotelId);
-    if (!hotel) return res.status(404).render('404');
+    if (!hotel) return res.status(404).render('404', { title: 'Hotel Not Found' });
     res.render('admin/hotel_accounting', {
+      title:     `Accounting: ${hotel.name}`,
       hotelId:   hotel.id,
       hotelName: hotel.name,
     });
