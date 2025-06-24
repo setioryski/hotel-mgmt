@@ -16,6 +16,7 @@ import Guest from './models/Guest.js';
 import User from './models/User.js';
 import Booking from './models/Booking.js';
 import RoomBlock from './models/RoomBlock.js';
+import AccountingEntry from './models/AccountingEntry.js';  // ← new
 
 // Import API routes
 import authRoutes from './routes/authRoutes.js';
@@ -24,6 +25,7 @@ import guestRoutes from './routes/guestRoutes.js';
 import hotelRoutes from './routes/hotelRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import blockRoutes from './routes/blockRoutes.js';
+import accountingRoutes from './routes/accountingRoutes.js'; // ← new
 
 // Import auth middlewares
 import { protect, authorize } from './middlewares/auth.js';
@@ -126,6 +128,20 @@ app.get(
     } catch (err) {
       next(err);
     }
+  }
+);
+
+app.get(
+  '/admin/hotels/:hotelId/accounting',
+  protect,
+  authorize('admin'),
+  async (req, res, next) => {
+    const hotel = await Hotel.findByPk(req.params.hotelId);
+    if (!hotel) return res.status(404).render('404');
+    res.render('admin/hotel_accounting', {
+      hotelId:   hotel.id,
+      hotelName: hotel.name,
+    });
   }
 );
 

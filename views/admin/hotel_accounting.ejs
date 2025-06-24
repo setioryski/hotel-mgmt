@@ -1,0 +1,176 @@
+<!-- views/admin/hotel_accounting.ejs -->
+<% title = 'Accounting – ' + hotelName %>
+
+<a href="/admin/hotels" class="text-sm text-gray-600 hover:underline mb-4 inline-block">
+  ← Back to Hotels
+</a>
+
+<h1 class="text-2xl font-bold mb-4">Accounting – <%= hotelName %></h1>
+
+<div
+  id="accountingPage"
+  class="p-6 bg-white rounded shadow"
+  data-hotel-id="<%= hotelId %>"
+>
+  <!-- Income summary -->
+  <div id="incomeSummary" class="mb-6">
+    <h2 class="text-xl font-semibold mb-2">Income Summary</h2>
+    <table class="min-w-full bg-white rounded shadow overflow-hidden mb-4">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2 text-left">Date</th>
+          <th class="px-4 py-2 text-right">Total Income</th>
+        </tr>
+      </thead>
+      <tbody id="summaryTable"></tbody>
+      <tfoot class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2 text-left">Overall Total</th>
+          <th class="px-4 py-2 text-right" id="overallIncome">0.00</th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  <!-- Manual entries -->
+  <button
+    id="addEntryBtn"
+    class="mb-4 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+  >+ Add Entry</button>
+
+  <table class="min-w-full bg-white rounded shadow overflow-hidden">
+    <thead class="bg-gray-100">
+      <tr>
+        <th class="px-4 py-2 text-left">Date</th>
+        <th class="px-4 py-2 text-left">Description</th>
+        <th class="px-4 py-2 text-left">Type</th>
+        <th class="px-4 py-2 text-right">Amount</th>
+        <th class="px-4 py-2 text-left">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="accountingTable"></tbody>
+  </table>
+</div>
+
+<script>
+(function() {
+  document.addEventListener('DOMContentLoaded', () => {
+    const hotelId     = document.getElementById('accountingPage').dataset.hotelId;
+    const summaryBody = document.getElementById('summaryTable');
+    const overallEl   = document.getElementById('overallIncome');
+    const tableBody   = document.getElementById('accountingTable');
+
+    async function loadEntries() {
+      let data = [];
+      try {
+        const res = await fetch(`/api/accountings?hotel=${hotelId}`);
+        if (!res.ok) {
+          console.error('Fetch error:', res.status, await res.text());
+          return;
+        }
+        data = await res.json();
+      } catch (err) {
+        console.error('Network error:', err);
+        return;
+      }
+
+      // Build income summary
+      const incomes = data.filter(e => e.type === 'income');
+      const byDate = incomes.reduce((acc, e) => {
+        acc[e.date] = (acc[e.date] || 0) + parseFloat(e.amount);
+        return acc;
+      }, {});
+
+      // Render summary
+      const dates = Object.keys(byDate).sort();
+      if (dates.length) {
+        summaryBody.innerHTML = dates.map(date => `
+          <tr>
+            <td class="border px-4 py-2">${date}</td>
+            <td class="border px-4 py-2 text-right">${byDate[date].toFixed(2)}</td>
+          </tr>
+        `).join('');
+      } else {
+        summaryBody.innerHTML = `
+          <tr>
+            <td colspan="2" class="text-center py-2 text-gray-600">No income entries</td>
+          </tr>
+        `;
+      }
+      // Overall
+      const overallTotal = incomes.reduce((sum, e) => sum + parseFloat(e.amount), 0);
+      overallEl.textContent = overallTotal.toFixed(2);
+
+      // Render full entries table
+      if (data.length) {
+        tableBody.innerHTML = data.map(e => `
+          <tr>
+            <td class="border px-4 py-2">${e.date}</td>
+            <td class="border px-4 py-2">${e.description||''}</td>
+            <td class="border px-4 py-2 capitalize">${e.type}</td>
+            <td class="border px-4 py-2 text-right">${parseFloat(e.amount).toFixed(2)}</td>
+            <td class="border px-4 py-2 space-x-2">
+              ${e._generated
+                ? ''
+                : `<button data-id="${e.id}" class="editBtn text-blue-600 hover:underline">Edit</button>
+                   <button data-id="${e.id}" class="deleteBtn text-red-600 hover:underline">Delete</button>`
+              }
+            </td>
+          </tr>
+        `).join('');
+      } else {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="5" class="text-center py-2 text-gray-600">No entries yet</td>
+          </tr>
+        `;
+      }
+    }
+
+    // Handlers for manual Add/Edit/Delete
+    document.getElementById('addEntryBtn').addEventListener('click', async () => {
+      const date        = prompt('Date (YYYY-MM-DD):');      if (!date) return;
+      const description = prompt('Description:');             if (description === null) return;
+      const type        = prompt('Type (income/expense):');  if (!['income','expense'].includes(type)) return alert('Invalid type');
+      const amount      = prompt('Amount:');                 if (isNaN(amount)) return alert('Invalid amount');
+      await fetch(`/api/accountings?hotel=${hotelId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, description, type, amount }),
+      });
+      loadEntries();
+    });
+
+    tableBody.addEventListener('click', async e => {
+      const id = e.target.dataset.id;
+      if (!id) return;
+      if (e.target.matches('.deleteBtn')) {
+        if (!confirm('Delete this entry?')) return;
+        await fetch(`/api/accountings/${id}`, { method: 'DELETE' });
+        loadEntries();
+      }
+      if (e.target.matches('.editBtn')) {
+        const row      = e.target.closest('tr');
+        const [d, ds, tp, am] = row.children;
+        const newDate  = prompt('Date:',        d.textContent);
+        const newDesc  = prompt('Description:', ds.textContent);
+        const newType  = prompt('Type:',        tp.textContent);
+        const newAmt   = prompt('Amount:',      am.textContent);
+        await fetch(`/api/accountings/${id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            date: newDate,
+            description: newDesc,
+            type: newType,
+            amount: newAmt
+          }),
+        });
+        loadEntries();
+      }
+    });
+
+    loadEntries();
+  });
+})();
+</script>

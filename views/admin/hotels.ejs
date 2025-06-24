@@ -22,9 +22,7 @@
         <th class="px-4 py-2 text-left">Actions</th>
       </tr>
     </thead>
-    <tbody id="hotelsTable">
-      <!-- Populated by JS -->
-    </tbody>
+    <tbody id="hotelsTable"></tbody>
   </table>
 </div>
 
@@ -98,9 +96,7 @@
     // Fetch and render the list of hotels
     const fetchHotels = async () => {
       try {
-        const res = await fetch('/api/hotels', {
-          credentials: 'include'
-        });
+        const res = await fetch('/api/hotels', { credentials: 'include' });
         const hotels = await res.json();
         table.innerHTML = hotels.map(h => `
           <tr>
@@ -108,22 +104,11 @@
             <td class="border px-4 py-2">${h.address || ''}</td>
             <td class="border px-4 py-2">${h.contact || ''}</td>
             <td class="border px-4 py-2 space-x-2">
-              <a
-                href="/admin/hotels/${h.id}/rooms"
-                class="text-blue-600 hover:underline"
-              >Rooms</a> |
-              <a
-                href="/admin/hotels/${h.id}/guests"
-                class="text-green-600 hover:underline"
-              >Guests</a> |
-              <a
-                href="/admin/hotels/${h.id}/calendar"
-                class="text-purple-600 hover:underline"
-              >Calendar</a> |
-              <button
-                data-id="${h.id}"
-                class="editHotelBtn text-yellow-600 hover:underline"
-              >Edit</button>
+              <a href="/admin/hotels/${h.id}/rooms"    class="text-blue-600 hover:underline">Rooms</a> |
+              <a href="/admin/hotels/${h.id}/guests"   class="text-green-600 hover:underline">Guests</a> |
+              <a href="/admin/hotels/${h.id}/calendar" class="text-purple-600 hover:underline">Calendar</a> |
+              <a href="/admin/hotels/${h.id}/accounting" class="text-indigo-600 hover:underline">Accounting</a> |
+              <button data-id="${h.id}" class="editHotelBtn text-yellow-600 hover:underline">Edit</button>
             </td>
           </tr>
         `).join('');
@@ -161,7 +146,7 @@
       modal.classList.add('hidden');
     };
 
-    // Handlers
+    // Event bindings
     addBtn.addEventListener('click', () => openModal());
     cancelBtn.addEventListener('click', closeModal);
 
@@ -169,7 +154,6 @@
     table.addEventListener('click', e => {
       if (e.target.matches('.editHotelBtn')) {
         const id = e.target.getAttribute('data-id');
-        // Grab existing values from row
         const row = e.target.closest('tr');
         const name = row.children[0].textContent;
         const address = row.children[1].textContent;
@@ -182,7 +166,7 @@
     form.addEventListener('submit', async e => {
       e.preventDefault();
       const payload = {
-        name: nameInput.value.trim(),
+        name:    nameInput.value.trim(),
         address: addressInput.value.trim(),
         contact: contactInput.value.trim(),
       };
