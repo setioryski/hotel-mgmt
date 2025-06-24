@@ -499,7 +499,7 @@ function CalendarScheduler({ initialHotelId }) {
     }
   };
 
-  const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
+const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
     let bgColor = event.bgColor;
     const borderWidth = 2;
     const mustBeHeight = 28;
@@ -525,21 +525,34 @@ function CalendarScheduler({ initialHotelId }) {
         `Total Price: ${formattedTotalPrice}`,
         `Status: ${event.status}`,
         `Guest Booking Count: ${bookingCount}`,
-        event.notes ? `\nNotes: ${event.notes}` : '', // ADDED: Display notes in tooltip
+        event.notes ? `\nNotes: ${event.notes}` : '',
       ].join('\n');
     } else {
       tooltipText = `Block: ${event.title}\nFrom: ${moment(event.start).format('YYYY-MM-DD')}\nTo: ${moment(event.end).format('YYYY-MM-DD')}`;
     }
+
+    // A safer way to combine styles to prevent rendering errors.
+    const providedStyle = style || {};
 
     return (
       <div
         key={event.id}
         title={tooltipText}
         style={{
+          // Properties from the scheduler
+          position: providedStyle.position,
+          top: providedStyle.top,
+          left: providedStyle.left,
+          width: providedStyle.width,
+          
+          // Your custom properties
+          height: mustBeHeight, // Override scheduler height for a consistent look
           borderLeft: `${borderWidth}px solid ${bgColor}`,
-          backgroundColor: bgColor, height: mustBeHeight,
-          maxWidth: 999, padding: '2px', position: 'relative',
-          cursor: 'pointer', color: '#fff',
+          backgroundColor: bgColor,
+          padding: '2px',
+          cursor: 'pointer',
+          color: '#fff',
+          boxSizing: 'border-box', // Ensures padding doesn't affect the final width
         }}
         onDoubleClick={() => onEventDoubleClick(sd, event)}
       >
