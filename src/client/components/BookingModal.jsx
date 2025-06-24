@@ -49,18 +49,20 @@ const BookingModal = ({
   setBookingEnd,
   bookingStatus,
   setBookingStatus,
-  bookingNotes, // ADDED: Prop for notes
-  setBookingNotes, // ADDED: Prop for setting notes
+  bookingNotes,
+  setBookingNotes,
 }) => {
   if (!visible) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white p-6 rounded-lg shadow-xl w-11/12 md:w-96 relative">
-        <h2 className="text-xl font-semibold mb-4">{isEditing ? 'Edit Booking' : 'New Booking'}</h2>
+        <h2 className="text-xl font-semibold mb-4">
+          {isEditing ? 'Edit Booking' : 'New Booking'}
+        </h2>
         {formError && <div className="text-red-600 mb-2">{formError}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* ... existing form fields ... */}
+          {/* Room select */}
           <div>
             <label className="block font-medium">Room:</label>
             <select
@@ -70,11 +72,14 @@ const BookingModal = ({
             >
               <option value="">— Select Room —</option>
               {resources.map((r) => (
-                <option key={r.id} value={r.id}>{`Room ${r.number}`}</option>
+                <option key={r.id} value={r.id}>
+                  {`Room ${r.number}`}
+                </option>
               ))}
             </select>
           </div>
-          {/* ... guest fields ... */}
+
+          {/* Guest autocomplete / add / edit */}
           <div ref={guestInputRef} className="relative">
             <label className="block font-medium mb-1">Guest:</label>
             <div className="flex items-center space-x-2">
@@ -129,17 +134,49 @@ const BookingModal = ({
               </ul>
             )}
           </div>
-           {/* ... guest create/edit forms ... */}
-           {/* Price, Dates, and Status fields */}
-           <div>
+
+          {/* Dates */}
+          <div>
             <label className="block font-medium">Check-In</label>
-            <input type="date" className="w-full border px-2 py-1 rounded" value={bookingStart} onChange={(e) => setBookingStart(e.target.value)} />
+            <input
+              type="date"
+              className="w-full border px-2 py-1 rounded"
+              value={bookingStart}
+              onChange={(e) => setBookingStart(e.target.value)}
+            />
           </div>
           <div>
             <label className="block font-medium">Check-Out</label>
-            <input type="date" className="w-full border px-2 py-1 rounded" value={bookingEnd} onChange={(e) => setBookingEnd(e.target.value)} />
+            <input
+              type="date"
+              className="w-full border px-2 py-1 rounded"
+              value={bookingEnd}
+              onChange={(e) => setBookingEnd(e.target.value)}
+            />
           </div>
-          {/* ADDED: Notes Textarea */}
+
+          {/* Restored Price fields */}
+          <div>
+            <label className="block font-medium">Price per Night</label>
+            <input
+              type="number"
+              step="0.01"
+              className="w-full border px-2 py-1 rounded"
+              value={bookingPrice}
+              onChange={(e) => setBookingPrice(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Total Price</label>
+            <input
+              type="text"
+              readOnly
+              className="w-full border px-2 py-1 rounded bg-gray-100"
+              value={bookingTotal}
+            />
+          </div>
+
+          {/* Notes */}
           <div>
             <label className="block font-medium">Notes (optional):</label>
             <textarea
@@ -150,10 +187,16 @@ const BookingModal = ({
               onChange={(e) => setBookingNotes(e.target.value)}
             ></textarea>
           </div>
+
+          {/* Status (editing only) */}
           {isEditing && (
             <div>
               <label className="block font-medium">Status</label>
-              <select className="w-full border px-2 py-1 rounded" value={bookingStatus} onChange={(e) => setBookingStatus(e.target.value)}>
+              <select
+                className="w-full border px-2 py-1 rounded"
+                value={bookingStatus}
+                onChange={(e) => setBookingStatus(e.target.value)}
+              >
                 <option value="tentative">Tentative</option>
                 <option value="booked">Booked</option>
                 <option value="checkedin">Checked In</option>
@@ -161,11 +204,33 @@ const BookingModal = ({
               </select>
             </div>
           )}
-          {/* ... buttons ... */}
+
+          {/* Actions */}
           <div className="flex justify-between items-center flex-wrap gap-2 pt-4 border-t">
-            <button type="button" onClick={closeModal} className="px-4 py-2 rounded border">Cancel</button>
-            {isEditing && <button type="button" onClick={handleCancelBooking} className="bg-red-600 text-white px-4 py-2 rounded">Cancel Booking</button>}
-            {!newGuestMode && !editingGuestMode && <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">{isEditing ? 'Update' : 'Book'}</button>}
+            <button
+              type="button"
+              onClick={closeModal}
+              className="px-4 py-2 rounded border"
+            >
+              Cancel
+            </button>
+            {isEditing && (
+              <button
+                type="button"
+                onClick={handleCancelBooking}
+                className="bg-red-600 text-white px-4 py-2 rounded"
+              >
+                Cancel Booking
+              </button>
+            )}
+            {!newGuestMode && !editingGuestMode && (
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-4 py-2 rounded"
+              >
+                {isEditing ? 'Update' : 'Book'}
+              </button>
+            )}
           </div>
         </form>
       </div>
