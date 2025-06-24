@@ -1,202 +1,64 @@
-<h1 class="text-2xl font-bold mb-4">Accounting for <%= hotelName %></h1>
+<%# views/admin/hotel_accounting.ejs %>
 
-<div class="mb-4">
-    <button onclick="showAddModal()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-        + Add Manual Entry
-    </button>
-</div>
+<div id="accounting-page-data" data-hotel-id="<%= hotelId %>"></div>
 
-<div class="overflow-x-auto bg-white rounded-lg shadow">
-  <table class="min-w-full">
-    <thead class="bg-gray-50">
-      <tr>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-        <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-      </tr>
-    </thead>
-    <tbody id="accounting-table-body" class="bg-white divide-y divide-gray-200">
-      <tr>
-        <td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading...</td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+<div class="container mx-auto p-4">
+  <h1 class="text-2xl font-bold mb-4">Akuntansi untuk <%= hotelName %></h1>
 
-<div id="entry-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-    <div class="bg-white p-6 rounded-lg shadow-xl w-11/12 md:w-96">
-        <h2 id="modal-title" class="text-xl font-semibold mb-4">Add New Entry</h2>
-        <div id="modal-error" class="text-red-600 mb-2 hidden"></div>
-        <form id="entry-form" class="space-y-4">
-            <input type="hidden" id="entry-id">
-            <div>
-                <label class="block font-medium">Type</label>
-                <select id="entry-type" class="w-full border px-2 py-1 rounded">
-                    <option value="expense">Expense</option>
-                    <option value="income">Income</option>
-                </select>
-            </div>
-            <div>
-                <label class="block font-medium">Date</label>
-                <input type="date" id="entry-date" class="w-full border px-2 py-1 rounded">
-            </div>
-            <div>
-                <label class="block font-medium">Description</label>
-                <input type="text" id="entry-description" class="w-full border px-2 py-1 rounded" placeholder="e.g., Office Supplies">
-            </div>
-            <div>
-                <label class="block font-medium">Amount</label>
-                <input type="number" step="0.01" id="entry-amount" class="w-full border px-2 py-1 rounded" placeholder="100.00">
-            </div>
-            <div class="flex justify-end space-x-4 pt-4">
-                <button type="button" onclick="closeModal()" class="px-4 py-2 rounded border">Cancel</button>
-                <button type="submit" class="bg-blue-600 text-white px-4 py-2 rounded">Save Entry</button>
-            </div>
-        </form>
+  <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+    <h2 class="text-xl font-semibold mb-2">Buat Laporan</h2>
+    <div class="flex items-center space-x-4">
+      <div>
+        <label for="start-date" class="block text-sm font-medium text-gray-700">Tanggal Mulai</label>
+        <input type="date" id="start-date" name="start-date" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+      </div>
+      <div>
+        <label for="end-date" class="block text-sm font-medium text-gray-700">Tanggal Selesai</label>
+        <input type="date" id="end-date" name="end-date" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+      </div>
+      <button id="generate-report-btn" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+        Buat Laporan
+      </button>
     </div>
+  </div>
+
+  <div class="bg-white p-4 rounded-lg shadow-md mb-6">
+    <h2 class="text-xl font-semibold mb-2">Ringkasan</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-center">
+      <div class="p-4 bg-green-100 rounded-lg">
+        <h3 class="text-lg font-medium text-green-800" id="total-income">Total Pendapatan: Rp0</h3>
+      </div>
+      <div class="p-4 bg-red-100 rounded-lg">
+        <h3 class="text-lg font-medium text-red-800" id="total-expense">Total Pengeluaran: Rp0</h3>
+      </div>
+      <div class="p-4 bg-blue-100 rounded-lg">
+        <h3 class="text-lg font-medium text-blue-800" id="net-profit">Laba Bersih: Rp0</h3>
+      </div>
+    </div>
+  </div>
+
+
+  <div class="flex flex-col">
+    <div class="-my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
+      <div class="py-2 align-middle inline-block min-w-full sm:px-6 lg:px-8">
+        <div class="shadow overflow-hidden border-b border-gray-200 sm:rounded-lg">
+          <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+              <tr>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanggal</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Deskripsi</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipe</th>
+                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jumlah (Rp)</th>
+              </tr>
+            </thead>
+            <tbody id="entries-tbody" class="bg-white divide-y divide-gray-200">
+              </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
-
-<script>
-  const hotelId = '<%= hotelId %>';
-  const tableBody = document.getElementById('accounting-table-body');
-  const modal = document.getElementById('entry-modal');
-  const modalError = document.getElementById('modal-error');
-  const entryForm = document.getElementById('entry-form');
-
-  const renderTable = (entries) => {
-    tableBody.innerHTML = '';
-
-    if (!entries || entries.length === 0) {
-      tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">No accounting entries found.</td></tr>';
-      return;
-    }
-
-    entries.forEach(entry => {
-      const isIncome = entry.type === 'income';
-      const amountColor = isIncome ? 'text-green-600' : 'text-red-600';
-      const amountPrefix = isIncome ? '+' : '-';
-      const formattedAmount = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(entry.amount);
-
-      const isManual = !entry.BookingId;
-      const actionsHtml = isManual 
-        ? `<button onclick='showEditModal(${JSON.stringify(entry)})' class="text-indigo-600 hover:text-indigo-900">Edit</button>
-           <button onclick="deleteEntry(${entry.id})" class="text-red-600 hover:text-red-900 ml-4">Delete</button>`
-        : `<span class="text-xs text-gray-400">Automated</span>`;
-
-      const row = `
-        <tr>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${new Date(entry.date).toLocaleDateString('en-CA')}</td>
-          <td class="px-6 py-4">
-            <div class="text-sm text-gray-900">${entry.description}</div>
-            ${entry.BookingId ? `<div class="text-xs text-gray-500">From Booking #${entry.BookingId}</div>` : ''}
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap">
-            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${isIncome ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">
-              ${entry.type}
-            </span>
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap text-right font-medium ${amountColor}">
-            ${amountPrefix} ${formattedAmount}
-          </td>
-          <td class="px-6 py-4 whitespace-nowrap text-center text-sm">
-            ${actionsHtml}
-          </td>
-        </tr>
-      `;
-      tableBody.insertAdjacentHTML('beforeend', row);
-    });
-  };
-
-  const fetchEntries = async () => {
-    try {
-      tableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading...</td></tr>';
-      const response = await fetch(`/api/accountings?hotel=${hotelId}`);
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to fetch accounting data');
-      }
-      const entries = await response.json();
-      renderTable(entries);
-    } catch (error) {
-      console.error('Error fetching entries:', error);
-      // <-- fixed: removed the stray backslash here
-      tableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Error: ${error.message}</td></tr>`;
-    }
-  };
-
-  const closeModal = () => modal.classList.add('hidden');
-
-  const showAddModal = () => {
-      entryForm.reset();
-      document.getElementById('entry-id').value = '';
-      document.getElementById('modal-title').textContent = 'Add New Entry';
-      document.getElementById('entry-date').value = new Date().toISOString().split('T')[0];
-      modalError.classList.add('hidden');
-      modal.classList.remove('hidden');
-  };
-
-  const showEditModal = (entry) => {
-      entryForm.reset();
-      document.getElementById('modal-title').textContent = 'Edit Entry';
-      document.getElementById('entry-id').value = entry.id;
-      document.getElementById('entry-type').value = entry.type;
-      document.getElementById('entry-date').value = entry.date;
-      document.getElementById('entry-description').value = entry.description;
-      document.getElementById('entry-amount').value = entry.amount;
-      modalError.classList.add('hidden');
-      modal.classList.remove('hidden');
-  };
-
-  const deleteEntry = async (id) => {
-    if (confirm(`Are you sure you want to delete this entry?`)) {
-      try {
-        const response = await fetch(`/api/accountings/${id}`, { method: 'DELETE' });
-        if (!response.ok) throw new Error('Failed to delete entry');
-        fetchEntries();
-      } catch (error) {
-        alert('Could not delete the entry.');
-      }
-    }
-  };
-
-  entryForm.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const id = document.getElementById('entry-id').value;
-      const data = {
-          type: document.getElementById('entry-type').value,
-          date: document.getElementById('entry-date').value,
-          description: document.getElementById('entry-description').value,
-          amount: document.getElementById('entry-amount').value,
-      };
-
-      const url = id ? `/api/accountings/${id}` : `/api/accountings?hotel=${hotelId}`;
-      const method = id ? 'PUT' : 'POST';
-
-      try {
-          const response = await fetch(url, {
-              method,
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(data),
-          });
-          
-          if (!response.ok) {
-              const result = await response.json();
-              const errorMsg = result.errors
-                ? result.errors.map(e => e.msg).join(', ')
-                : (result.error || 'An error occurred.');
-              throw new Error(errorMsg);
-          }
-          closeModal();
-          fetchEntries();
-      } catch (error) {
-          modalError.textContent = error.message;
-          modalError.classList.remove('hidden');
-      }
-  });
-
-  document.addEventListener('DOMContentLoaded', fetchEntries);
-  window.addEventListener('accounting-updated', fetchEntries);
-</script>
+<script src="/js/accounting.js"></script>

@@ -9,13 +9,16 @@ import Booking from '../models/Booking.js';
 import Guest from '../models/Guest.js';
 
 /**
- * GET /api/accountings?hotel=:hotelId
+ * GET /api/accountings?hotel=:hotelId&startDate=:startDate&endDate=:endDate
  * Returns all accounting entries for a hotel from the database.
  * Automatically creates and persists income entries for any bookings that are missing one.
+ * If startDate and endDate are provided, it will filter the results.
  */
 export const getEntries = async (req, res, next) => {
   try {
     const hotelId = req.query.hotel;
+    const { startDate, endDate } = req.query; // get dates from query
+
     if (!hotelId) {
       return res.status(400).json({ error: 'Missing hotel query parameter' });
     }
@@ -64,14 +67,47 @@ export const getEntries = async (req, res, next) => {
       await AccountingEntry.bulkCreate(newEntriesToCreate);
     }
 
-    // 5. Fetch ALL entries for the hotel (now including the newly created ones)
+    // 5. Build the date filtering condition
+    const whereCondition = { HotelId: hotelId };
+    if (startDate && endDate) {
+      whereCondition.date = {
+        [Op.between]: [startDate, endDate]
+      };
+    } else if (startDate) {
+      whereCondition.date = {
+        [Op.gte]: startDate
+      }
+    } else if (endDate) {
+      whereCondition.date = {
+        [Op.lte]: endDate
+      }
+    }
+
+
+    // 6. Fetch ALL entries for the hotel (now including the newly created ones and filtered by date)
     const allEntries = await AccountingEntry.findAll({
-      where: { HotelId: hotelId },
+      where: whereCondition,
       order: [['date', 'DESC']]
     });
 
-    // 6. Return the complete, clean list from the database
-    return res.json(allEntries);
+    // 7. Calculate total income and expense
+    const totalIncome = allEntries
+      .filter(e => e.type === 'income')
+      .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+
+    const totalExpense = allEntries
+      .filter(e => e.type === 'expense')
+      .reduce((sum, e) => sum + parseFloat(e.amount), 0);
+
+    const netProfit = totalIncome - totalExpense;
+
+    // 8. Return the complete, clean list from the database with net profit
+    return res.json({
+        entries: allEntries,
+        totalIncome,
+        totalExpense,
+        netProfit,
+    });
 
   } catch (err) {
     next(err);

@@ -13,7 +13,11 @@ router.use(protect, authorize('admin'));
 // List entries for a hotel
 router.get(
   '/',
-  [ query('hotel').isString().withMessage('Invalid hotel ID') ],
+  [
+    query('hotel').isString().withMessage('Invalid hotel ID'),
+    query('startDate').optional().isISO8601().withMessage('Start date must be YYYY-MM-DD'),
+    query('endDate').optional().isISO8601().withMessage('End date must be YYYY-MM-DD')
+  ],
   ctrl.getEntries
 );
 
