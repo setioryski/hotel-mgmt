@@ -62,16 +62,16 @@ document.addEventListener('DOMContentLoaded', () => {
         row.innerHTML = `
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(entry.date).toLocaleDateString('id-ID')}</td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${entry.description}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm ${entry.type === 'income' ? 'text-green-600' : 'text-red-600'}">${entry.type === 'income' ? 'Pendapatan' : 'Pengeluaran'}</td>
+          <td class="px-6 py-4 whitespace-nowrap text-sm ${entry.type === 'income' ? 'text-green-600' : 'text-red-600'}">${entry.type === 'income' ? 'Income' : 'Expense'}</td>
           <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${amount.toLocaleString('id-ID')}</td>
         `;
         entriesTbody.appendChild(row);
       });
 
       // Update summary
-      totalIncomeEl.textContent = `Total Pendapatan: ${formatRupiah(data.totalIncome)}`;
-      totalExpenseEl.textContent = `Total Pengeluaran: ${formatRupiah(data.totalExpense)}`;
-      netProfitEl.textContent = `Laba Bersih: ${formatRupiah(data.netProfit)}`;
+      totalIncomeEl.textContent = `Total Income: ${formatRupiah(data.totalIncome)}`;
+      totalExpenseEl.textContent = `Total Expense: ${formatRupiah(data.totalExpense)}`;
+      netProfitEl.textContent = `Net Profit: ${formatRupiah(data.netProfit)}`;
 
     } catch (error) {
       console.error('Error fetching accounting data:', error);
