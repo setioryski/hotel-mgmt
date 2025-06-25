@@ -1,87 +1,188 @@
 // public/js/accounting.js
 
 document.addEventListener('DOMContentLoaded', () => {
-  const hotelId = document.getElementById('accounting-page-data').dataset.hotelId;
-  const generateReportBtn = document.getElementById('generate-report-btn');
-  const startDateInput = document.getElementById('start-date');
-  const endDateInput = document.getElementById('end-date');
-  const entriesTbody = document.getElementById('entries-tbody');
-  const netProfitEl = document.getElementById('net-profit');
-  const totalIncomeEl = document.getElementById('total-income');
-  const totalExpenseEl = document.getElementById('total-expense');
+  // Grab hotelId from the page
+  const hotelId = document
+    .getElementById('accounting-page-data')
+    .dataset.hotelId;
 
-  // Helper function to format a Date object to a 'YYYY-MM-DD' string,
-  // adjusting for the local timezone.
-  const toISODateString = (date) => {
-    const tzOffset = date.getTimezoneOffset() * 60000; // Timezone offset in milliseconds.
-    const localISOTime = (new Date(date - tzOffset)).toISOString().slice(0, 10);
-    return localISOTime;
+  // --- START: Date Logic ---
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = today.getMonth(); // 0-indexed (0 for January)
+
+  const firstDayOfMonth = new Date(year, month, 1);
+  const lastDayOfMonth = new Date(year, month + 1, 0); // Day 0 of next month is last day of current
+
+  // Helper function to format date as YYYY-MM-DD for input fields
+  const formatDate = (date) => {
+    const d = new Date(date);
+    let month = '' + (d.getMonth() + 1);
+    let day = '' + d.getDate();
+    const year = d.getFullYear();
+
+    if (month.length < 2) month = '0' + month;
+    if (day.length < 2) day = '0' + day;
+
+    return [year, month, day].join('-');
   };
 
-  // Set default dates to the current month
-  const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
-  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const defaultStartDate = formatDate(firstDayOfMonth);
+  const defaultEndDate = formatDate(lastDayOfMonth);
+  const todayDate = formatDate(today);
+  // --- END: Date Logic ---
 
-  startDateInput.value = toISODateString(firstDay);
-  endDateInput.value = toISODateString(lastDay);
+  // Elements
+  const startInput = document.getElementById('start-date');
+  const endInput   = document.getElementById('end-date');
+  const genBtn     = document.getElementById('generate-report-btn');
+  const clearBtn   = document.getElementById('clear-filter-btn');
+  const addBtn     = document.getElementById('add-entry-btn');
+  const modal      = document.getElementById('add-entry-modal');
+  const cancelBtn  = document.getElementById('cancel-add-entry-btn');
+  const form       = document.getElementById('add-entry-form');
+  const tableBody  = document.getElementById('entries-tbody');
+  const tableLoading = document.getElementById('entries-loading');
+  const totalInc   = document.getElementById('total-income');
+  const totalExp   = document.getElementById('total-expense');
+  const netProfit  = document.getElementById('net-profit');
 
-  // Helper function to format currency in Indonesian Rupiah
-  const formatRupiah = (number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(number).replace(/\s?IDR/, 'Rp'); // Format to 'Rp'
-  };
+  // Set default values for date inputs
+  startInput.value = defaultStartDate;
+  endInput.value = defaultEndDate;
 
-  const fetchAndRenderEntries = async () => {
-    const startDate = startDateInput.value;
-    const endDate = endDateInput.value;
+  // Fetch & render entries + summary
+  async function loadEntries(startDate = '', endDate = '') {
+    tableBody.innerHTML = ''; // Clear existing entries
+    tableLoading.classList.remove('hidden'); // Show loader
 
     let url = `/api/accountings?hotel=${hotelId}`;
-    if (startDate && endDate) {
-      url += `&startDate=${startDate}&endDate=${endDate}`;
-    }
+    if (startDate) url += `&startDate=${startDate}`;
+    if (endDate)   url += `&endDate=${endDate}`;
 
     try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error('Failed to fetch accounting data');
-      }
-      const data = await response.json();
+      const res = await fetch(url);
+      const { entries, totalIncome, totalExpense, netProfit: net } = await res.json();
 
-      // Clear existing table rows
-      entriesTbody.innerHTML = '';
+      tableLoading.classList.add('hidden'); // Hide loader
 
-      // Render new rows
-      data.entries.forEach(entry => {
-        const row = document.createElement('tr');
-        const amount = parseFloat(entry.amount);
-        row.innerHTML = `
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(entry.date).toLocaleDateString('id-ID')}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${entry.description}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm ${entry.type === 'income' ? 'text-green-600' : 'text-red-600'}">${entry.type === 'income' ? 'Income' : 'Expense'}</td>
-          <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${amount.toLocaleString('id-ID')}</td>
+      // Summary
+      totalInc.textContent = `Total Income: Rp${totalIncome.toLocaleString()}`;
+      totalExp.textContent = `Total Expense: Rp${totalExpense.toLocaleString()}`;
+      netProfit.textContent = `Net Profit: Rp${net.toLocaleString()}`;
+
+      // Handle empty state
+      if (entries.length === 0) {
+        tableBody.innerHTML = `
+          <tr>
+            <td colspan="4" class="text-center p-8">
+              <h3 class="text-lg font-medium text-gray-800">No Entries Found</h3>
+              <p class="text-sm text-gray-500 mt-1">Try adjusting the date filters or add a new entry.</p>
+            </td>
+          </tr>
         `;
-        entriesTbody.appendChild(row);
-      });
+        return;
+      }
 
-      // Update summary
-      totalIncomeEl.textContent = `Total Income: ${formatRupiah(data.totalIncome)}`;
-      totalExpenseEl.textContent = `Total Expense: ${formatRupiah(data.totalExpense)}`;
-      netProfitEl.textContent = `Net Profit: ${formatRupiah(data.netProfit)}`;
+      // *** NEW: Sort entries by date descending (newest first) ***
+      entries.sort((a, b) => b.date.localeCompare(a.date));
+
+      // Table rows
+      tableBody.innerHTML = entries
+        .map(e => {
+          const isIncome = e.type === 'income';
+          const amountColorClass = isIncome ? 'text-green-600' : 'text-red-600';
+          const amountPrefix = isIncome ? '+' : '-';
+
+          return `
+            <tr>
+              <td class="px-6 py-4 whitespace-nowrap">${e.date}</td>
+              <td class="px-6 py-4">${e.description || '-'}</td>
+              <td class="px-6 py-4 capitalize">${e.type}</td>
+              <td class="px-6 py-4 text-right font-medium ${amountColorClass}">
+                ${amountPrefix} ${parseFloat(e.amount).toLocaleString()}
+              </td>
+            </tr>
+          `;
+        }).join('');
 
     } catch (error) {
-      console.error('Error fetching accounting data:', error);
-      alert('Could not load accounting data.');
+      tableLoading.classList.add('hidden');
+      tableBody.innerHTML = `
+        <tr>
+          <td colspan="4" class="text-center p-8 text-red-600">
+            Failed to load data. Please try again later.
+          </td>
+        </tr>
+      `;
+      console.error('Error loading accounting entries:', error);
     }
-  };
+  }
 
-  // Fetch initial data on page load using the default dates
-  fetchAndRenderEntries();
+  // Generate report handler
+  genBtn.addEventListener('click', () => {
+    loadEntries(startInput.value, endInput.value);
+  });
 
-  // Add event listener for the button to generate reports for different date ranges
-  generateReportBtn.addEventListener('click', fetchAndRenderEntries);
+  // Clear filter handler
+  clearBtn.addEventListener('click', () => {
+    startInput.value = '';
+    endInput.value = '';
+    loadEntries();
+  });
+
+  // Show add-entry modal
+  addBtn.addEventListener('click', () => {
+    // Set default date to today when opening modal
+    form.date.value = todayDate;
+    modal.classList.remove('hidden');
+  });
+
+  // Hide add-entry modal
+  cancelBtn.addEventListener('click', () => {
+    modal.classList.add('hidden');
+    form.reset();
+  });
+
+  // Submit new entry
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const submitBtn = form.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = 'Adding...';
+
+    const formData = {
+      type:        form.type.value,
+      date:        form.date.value,
+      description: form.description.value,
+      amount:      form.amount.value,
+    };
+
+    try {
+      const response = await fetch(`/api/accountings?hotel=${hotelId}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(formData),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add entry. The server responded with an error.');
+      }
+
+      modal.classList.add('hidden');
+      form.reset();
+      // Reload entries to show the new one, using the current date filters
+      loadEntries(startInput.value, endInput.value);
+
+    } catch (error) {
+      console.error(error);
+      alert('Could not add the entry. Please try again.');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Add Entry';
+    }
+  });
+
+  // Initial load with default start and end dates of the current month
+  loadEntries(defaultStartDate, defaultEndDate);
 });
