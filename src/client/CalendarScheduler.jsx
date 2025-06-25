@@ -11,6 +11,7 @@ import moment from 'moment';
 import { DragDropContext } from 'react-dnd';
 import HTML5Backend from 'react-dnd-html5-backend';
 import 'react-big-scheduler/lib/css/style.css';
+import io from 'socket.io-client'; // ADDED: For real-time updates
 
 import { ToastContainer, toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -92,7 +93,7 @@ function CalendarScheduler({ initialHotelId }) {
   const [bookingPrice, setBookingPrice] = useState('');
   const [roomPrices, setRoomPrices] = useState({});
   const [bookingTotal, setBookingTotal] = useState('');
-  const [bookingNotes, setBookingNotes] = useState(''); // ADDED: State for booking notes
+  const [bookingNotes, setBookingNotes] = useState('');
 
   // Block modal & form state
   const [blockModalVisible, setBlockModalVisible] = useState(false);
@@ -206,6 +207,29 @@ function CalendarScheduler({ initialHotelId }) {
     }
   }, [selectedHotel, selectedRoomType]);
 
+  // --- ADDED: Real-time updates with Socket.IO ---
+  useEffect(() => {
+    if (!selectedHotel) return;
+
+    const socket = io();
+    socket.emit('joinHotel', selectedHotel);
+    console.log(`Socket client joined room for hotel: ${selectedHotel}`);
+
+    const handleDataUpdate = () => {
+      console.log(`'dataUpdated' event received for hotel ${selectedHotel}. Refreshing...`);
+      toast.info('Calendar has been updated by another user.');
+      loadData();
+    };
+
+    socket.on('dataUpdated', handleDataUpdate);
+
+    return () => {
+      console.log(`Socket client leaving room for hotel: ${selectedHotel}`);
+      socket.off('dataUpdated', handleDataUpdate);
+      socket.disconnect();
+    };
+  }, [selectedHotel]);
+
   // ────────────────────────────────────────────────────────────
   // UI Effect Handlers (Local UI logic)
   // ────────────────────────────────────────────────────────────
@@ -294,7 +318,6 @@ function CalendarScheduler({ initialHotelId }) {
       }
       setBlockRoom(slotId);
       setBlockStart(startDate);
-      // MODIFICATION: Convert exclusive end date from scheduler to inclusive for the modal
       const inclusiveEndDate = moment(end).subtract(1, 'millisecond').format('YYYY-MM-DD');
       setBlockEnd(inclusiveEndDate);
       setBlockReason('');
@@ -360,7 +383,7 @@ function CalendarScheduler({ initialHotelId }) {
         status: bookingStatus,
         price: bookingPrice,
         totalPrice: bookingTotal,
-        notes: bookingNotes, // ADDED: Include notes in booking data
+        notes: bookingNotes,
     };
 
     try {
@@ -372,7 +395,7 @@ function CalendarScheduler({ initialHotelId }) {
         toast.success('Booking created');
       }
       closeBookingModal();
-      loadData();
+      // REMOVED: loadData(); // Relies on socket event now
     } catch (err) {
       console.error('Booking failed:', err);
       setBookingFormError(err.message);
@@ -385,8 +408,8 @@ function CalendarScheduler({ initialHotelId }) {
         try {
           await apiService.deleteBooking(editingBookingId);
           closeBookingModal();
-          loadData();
           toast.success('Booking cancelled');
+          // REMOVED: loadData(); // Relies on socket event now
         } catch (err) {
           console.error('Cancel booking failed:', err);
           toast.error('Failed to cancel booking');
@@ -410,7 +433,7 @@ function CalendarScheduler({ initialHotelId }) {
     setEditingGuestPhone('');
     setEditingGuestError('');
     setBookingFormError('');
-    setBookingNotes(''); // ADDED: Clear notes on close
+    setBookingNotes('');
   };
 
   // ────────────────────────────────────────────────────────────
@@ -422,7 +445,6 @@ function CalendarScheduler({ initialHotelId }) {
     if (!blockRoom) return setBlockFormError('Please select a room.');
     const startISO = `${blockStart}T12:00:00`;
     
-    // MODIFICATION: Make block end date inclusive by adding 1 day for the API call
     const endMoment = moment(blockEnd).add(1, 'day');
     const endISO = `${endMoment.format('YYYY-MM-DD')}T11:59:00`;
 
@@ -444,7 +466,7 @@ function CalendarScheduler({ initialHotelId }) {
         toast.success('Room blocked');
       }
       closeBlockModal();
-      loadData();
+      // REMOVED: loadData(); // Relies on socket event now
     } catch (err) {
       console.error('Block failed:', err);
       setBlockFormError(err.message);
@@ -457,8 +479,8 @@ function CalendarScheduler({ initialHotelId }) {
         try {
           await apiService.deleteBlock(editingBlockId);
           closeBlockModal();
-          loadData();
           toast.success('Room unblocked');
+          // REMOVED: loadData(); // Relies on socket event now
         } catch (err) {
           console.error('Unblock failed:', err);
           toast.error('Failed to unblock room');
@@ -479,24 +501,29 @@ function CalendarScheduler({ initialHotelId }) {
   // Scheduler Event Handlers (Drag, Resize, Double-click)
   // ────────────────────────────────────────────────────────────
   const onEventMove = (ev, slotId, start, end) => {
-    if (ev.type === 'booking') {
-      apiService.updateBooking(ev.id, {
-        room: slotId,
-        startDate: moment(start).format(),
-        endDate: moment(end).format(),
-        status: ev.status,
-      }).then(loadData).catch((err) => toast.error('Failed to move booking.'));
-    }
+    const apiCall = ev.type === 'booking'
+      ? apiService.updateBooking(ev.id, { room: slotId, startDate: moment(start).format(), endDate: moment(end).format(), status: ev.status })
+      : apiService.updateBlock(ev.id, { room: slotId, startDate: moment(start).format(), endDate: moment(end).format() });
+
+    apiCall
+      .then(() => toast.success('Event moved'))
+      .catch((err) => {
+        toast.error('Failed to move event.');
+        loadData(); // Revert on failure
+      });
   };
 
   const onEventResize = (ev, slotId, start, end) => {
-    if (ev.type === 'booking') {
-      apiService.updateBooking(ev.id, {
-        startDate: moment(start).format(),
-        endDate: moment(end).format(),
-        status: ev.status,
-      }).then(loadData).catch((err) => toast.error('Failed to resize booking.'));
-    }
+    const apiCall = ev.type === 'booking'
+      ? apiService.updateBooking(ev.id, { startDate: moment(start).format(), endDate: moment(end).format(), status: ev.status })
+      : apiService.updateBlock(ev.id, { startDate: moment(start).format(), endDate: moment(end).format() });
+
+    apiCall
+      .then(() => toast.success('Event resized'))
+      .catch((err) => {
+        toast.error('Failed to resize event.');
+        loadData(); // Revert on failure
+      });
   };
 
 const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
@@ -531,7 +558,6 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
       tooltipText = `Block: ${event.title}\nFrom: ${moment(event.start).format('YYYY-MM-DD')}\nTo: ${moment(event.end).format('YYYY-MM-DD')}`;
     }
 
-    // A safer way to combine styles to prevent rendering errors.
     const providedStyle = style || {};
 
     return (
@@ -539,20 +565,17 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
         key={event.id}
         title={tooltipText}
         style={{
-          // Properties from the scheduler
           position: providedStyle.position,
           top: providedStyle.top,
           left: providedStyle.left,
           width: providedStyle.width,
-          
-          // Your custom properties
-          height: mustBeHeight, // Override scheduler height for a consistent look
+          height: mustBeHeight,
           borderLeft: `${borderWidth}px solid ${bgColor}`,
           backgroundColor: bgColor,
           padding: '2px',
           cursor: 'pointer',
           color: '#fff',
-          boxSizing: 'border-box', // Ensures padding doesn't affect the final width
+          boxSizing: 'border-box',
         }}
         onDoubleClick={() => onEventDoubleClick(sd, event)}
       >
@@ -590,7 +613,7 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
       setEditingBookingId(event.id);
       setNewGuestMode(false);
       setEditingGuestMode(false);
-      setBookingNotes(event.notes || ''); // ADDED: Set notes when editing
+      setBookingNotes(event.notes || '');
       setBookingModalVisible(true);
     } else { // This is a block event
       setBlockRoom(event.resourceId);
@@ -610,7 +633,7 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
   const onViewChange = ({ viewType, showAgenda, isEventPerspective }) => {
     schedulerService.setViewType(viewType, showAgenda, isEventPerspective);
     setCurrentView(viewType);
-    setSchedulerVersion(v => v + 1); // Force re-render
+    setSchedulerVersion(v => v + 1);
   };
   const onSelectDate = (date) => {
     schedulerService.setDate(date);
@@ -668,13 +691,11 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
       await apiService.updateGuest(selectedGuest, {
         name: editingGuestName, email: editingGuestEmail, phone: editingGuestPhone,
       });
-      // Refresh all guests from the server to ensure consistency
       const updatedGuests = await apiService.getGuests();
       setGuests(updatedGuests);
       setGuestSearch(editingGuestName);
       setEditingGuestMode(false);
       toast.success('Guest updated');
-      // Also update the event title on the calendar if it's an existing booking
       if (isEditingBooking) {
         loadData(); 
       }
@@ -709,7 +730,7 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
       ) : (
         <div ref={schedulerWrapperRef} style={{ ...CELL_CSS_OVERRIDES, overflowX: 'auto' }}>
           <Scheduler
-            key={schedulerVersion} // Force re-render of scheduler when data changes
+            key={schedulerVersion}
             schedulerData={schedulerService.schedulerData}
             onViewChange={onViewChange}
             onSelectDate={onSelectDate}
@@ -773,8 +794,8 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
         setBookingEnd={setBookingEnd}
         bookingStatus={bookingStatus}
         setBookingStatus={setBookingStatus}
-        bookingNotes={bookingNotes} // ADDED: Pass notes state
-        setBookingNotes={setBookingNotes} // ADDED: Pass notes setter
+        bookingNotes={bookingNotes}
+        setBookingNotes={setBookingNotes}
       />
 
       <BlockModal

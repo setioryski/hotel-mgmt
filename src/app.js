@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import expressLayouts from 'express-ejs-layouts';
 import { fileURLToPath } from 'url';
+import http from 'http'; // <-- ADDED: Import Node.js http module
+import { initSocket } from './socket.js'; // <-- ADDED: Import socket initializer
 
 import sequelize from './config/sequelize.js';
 
@@ -16,7 +18,7 @@ import Guest from './models/Guest.js';
 import User from './models/User.js';
 import Booking from './models/Booking.js';
 import RoomBlock from './models/RoomBlock.js';
-import AccountingEntry from './models/AccountingEntry.js';  // ← new
+import AccountingEntry from './models/AccountingEntry.js';
 
 // Import API routes
 import authRoutes from './routes/authRoutes.js';
@@ -25,7 +27,7 @@ import guestRoutes from './routes/guestRoutes.js';
 import hotelRoutes from './routes/hotelRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import blockRoutes from './routes/blockRoutes.js';
-import accountingRoutes from './routes/accountingRoutes.js'; // ← new
+import accountingRoutes from './routes/accountingRoutes.js';
 
 // Import auth middlewares
 import { protect, authorize } from './middlewares/auth.js';
@@ -34,6 +36,8 @@ import errorHandler from './middlewares/errorHandler.js';
 dotenv.config();
 
 const app = express();
+const server = http.createServer(app); // <-- ADDED: Create an HTTP server from the Express app
+initSocket(server); // <-- ADDED: Initialize Socket.IO and attach it to the server
 
 // Sync database (creates tables / applies associations)
 await sequelize.sync({ alter: true });
@@ -84,7 +88,6 @@ app.get(
     res.render('admin/hotels', { title: 'Manage Hotels' })
 );
 
-// — New: Manage this hotel’s rooms —
 app.get(
   '/admin/hotels/:hotelId/rooms',
   protect,
@@ -96,7 +99,6 @@ app.get(
     })
 );
 
-// — New: Manage this hotel’s guests —
 app.get(
   '/admin/hotels/:hotelId/guests',
   protect,
@@ -114,13 +116,10 @@ app.get(
   authorize('admin'),
   async (req, res, next) => {
     try {
-      // look up the hotel
       const hotel = await Hotel.findByPk(req.params.hotelId);
       if (!hotel) {
-        // render your 404 view if not found
         return res.status(404).render('404', { title: 'Not Found' });
       }
-      // pass both hotelId and hotelName
       res.render('admin/hotel_calendar', {
         title:     'Booking Calendar',
         hotelId:   hotel.id,
@@ -147,8 +146,6 @@ app.get(
   }
 );
 
-
-
 app.get('/login', (req, res) =>
   res.render('auth/login', { title: 'Login' })
 );
@@ -162,6 +159,7 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, () =>
-  console.log(`🚀 Server running on port ${PORT}`)
+// MODIFIED: Listen on the http server, not the express app
+server.listen(PORT, () =>
+  console.log(`🚀 Server running on port ${PORT} with WebSocket support`)
 );
