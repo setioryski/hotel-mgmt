@@ -16,12 +16,12 @@ const BookingModal = ({
   setGuestSearch,
   showGuestSuggestions,
   setShowGuestSuggestions,
+  filteredGuests,
   selectedGuest,
   setSelectedGuest,
   setEditingGuestMode,
   onStartEditGuest,
   setNewGuestMode,
-  filteredGuests,
   newGuestMode,
   newGuestName,
   setNewGuestName,
@@ -40,23 +40,28 @@ const BookingModal = ({
   setEditingGuestPhone,
   handleGuestUpdate,
   editingGuestError,
-  bookingPrice,
-  setBookingPrice,
-  bookingTotal,
   bookingStart,
   setBookingStart,
   bookingEnd,
   setBookingEnd,
-  bookingStatus,
-  setBookingStatus,
+  bookingPrice,
+  setBookingPrice,
+  bookingTotal,
   bookingNotes,
   setBookingNotes,
+  bookingStatus,
+  setBookingStatus,
 }) => {
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-11/12 md:w-96 relative">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
+      <div
+        className="
+          bg-white p-6 rounded-lg shadow-lg w-full max-w-md
+          relative max-h-[85vh] overflow-y-auto
+        "
+      >
         <h2 className="text-xl font-semibold mb-4">
           {isEditing ? 'Edit Booking' : 'New Booking'}
         </h2>
@@ -73,7 +78,7 @@ const BookingModal = ({
               <option value="">— Select Room —</option>
               {resources.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {`Room ${r.number}`}
+                  Room {r.number}
                 </option>
               ))}
             </select>
@@ -85,7 +90,7 @@ const BookingModal = ({
             <div className="flex items-center space-x-2">
               <input
                 type="text"
-                className="w-full border px-2 py-1 rounded mb-1 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border px-2 py-1 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="Search guest…"
                 value={guestSearch}
                 onChange={(e) => {
@@ -135,6 +140,92 @@ const BookingModal = ({
             )}
           </div>
 
+          {/* New Guest Form */}
+          {newGuestMode && (
+            <div className="space-y-2 bg-gray-50 p-3 rounded">
+              {newGuestError && <div className="text-red-600">{newGuestError}</div>}
+              <div>
+                <label className="block font-medium">Name:</label>
+                <input
+                  type="text"
+                  className="w-full border px-2 py-1 rounded"
+                  value={newGuestName}
+                  onChange={(e) => setNewGuestName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Email (optional):</label>
+                <input
+                  type="email"
+                  className="w-full border px-2 py-1 rounded"
+                  value={newGuestEmail}
+                  onChange={(e) => setNewGuestEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Phone (optional):</label>
+                <input
+                  type="tel"
+                  className="w-full border px-2 py-1 rounded"
+                  value={newGuestPhone}
+                  onChange={(e) => setNewGuestPhone(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleAddNewGuest}
+                  className="bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  Add Guest
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Edit Guest Form */}
+          {editingGuestMode && (
+            <div className="space-y-2 bg-gray-50 p-3 rounded">
+              {editingGuestError && <div className="text-red-600">{editingGuestError}</div>}
+              <div>
+                <label className="block font-medium">Name:</label>
+                <input
+                  type="text"
+                  className="w-full border px-2 py-1 rounded"
+                  value={editingGuestName}
+                  onChange={(e) => setEditingGuestName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Email:</label>
+                <input
+                  type="email"
+                  className="w-full border px-2 py-1 rounded"
+                  value={editingGuestEmail}
+                  onChange={(e) => setEditingGuestEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block font-medium">Phone:</label>
+                <input
+                  type="tel"
+                  className="w-full border px-2 py-1 rounded"
+                  value={editingGuestPhone}
+                  onChange={(e) => setEditingGuestPhone(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={handleGuestUpdate}
+                  className="bg-blue-600 text-white px-4 py-2 rounded"
+                >
+                  Update Guest
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Dates */}
           <div>
             <label className="block font-medium">Check-In</label>
@@ -155,7 +246,7 @@ const BookingModal = ({
             />
           </div>
 
-          {/* Restored Price fields */}
+          {/* Price */}
           <div>
             <label className="block font-medium">Price per Night</label>
             <input
@@ -171,7 +262,7 @@ const BookingModal = ({
             <input
               type="text"
               readOnly
-              className="w-full border px-2 py-1 rounded bg-gray-100"
+                  className="w-full border px-2 py-1 rounded bg-gray-100"
               value={bookingTotal}
             />
           </div>
@@ -182,10 +273,10 @@ const BookingModal = ({
             <textarea
               className="w-full border px-2 py-1 rounded"
               rows="3"
-              placeholder="e.g. Special requests, late check-in..."
               value={bookingNotes}
               onChange={(e) => setBookingNotes(e.target.value)}
-            ></textarea>
+              placeholder="e.g. Late check-in, special requests…"
+            />
           </div>
 
           {/* Status (editing only) */}

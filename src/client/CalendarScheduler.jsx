@@ -648,6 +648,11 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
     loadData();
   };
 
+    // ← New: jump back to today
+  const onToday = () => {
+    const today = moment().format('YYYY-MM-DD');
+    onSelectDate(today);
+  };
   // ────────────────────────────────────────────────────────────
   // Guest autocomplete & handlers (Delegated to ApiService)
   // ────────────────────────────────────────────────────────────
@@ -718,6 +723,7 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
         setSelectedRoomType={setSelectedRoomType}
         roomTypes={roomTypes}
         onPrev={onPrev}
+        onToday={onToday}
         onNext={onNext}
         currentView={currentView}
         onViewChange={onViewChange}
