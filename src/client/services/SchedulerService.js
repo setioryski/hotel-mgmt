@@ -5,14 +5,21 @@ import { SchedulerData, ViewTypes, DATE_FORMAT } from 'react-big-scheduler';
 export class SchedulerService {
   constructor() {
     this.schedulerData = new SchedulerData(
-      moment().format(DATE_FORMAT),
-      ViewTypes.Month,
-      false,
-      false,
+      moment().format(DATE_FORMAT),  // initial date
+      ViewTypes.Month,               // initial view
+      false,                         // showAgenda
+      false,                         // isEventPerspective
       {
         minuteStep: 30,
         headerEnabled: false,
         eventItemPopoverEnabled: false,
+
+        // ────────────────────────────────
+        // FORCE A FIXED ROW HEIGHT
+        // ────────────────────────────────
+        nonAgendaSlotMinHeight: 48,   // minimum row height in non-agenda (resource) views
+        eventItemHeight:       28,    // your custom event height (match your template)
+        eventItemLineHeight:   28     // make line-height match
       }
     );
   }
