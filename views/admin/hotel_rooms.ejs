@@ -62,67 +62,97 @@
   </div>
 </div>
 
+<!-- SortableJS for drag-and-drop -->
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
 <script>
   document.addEventListener('DOMContentLoaded', () => {
-    const hotelId     = '<%= hotelId %>';
-    const roomsTable  = document.getElementById('roomsTable');
-    const newRoomBtn  = document.getElementById('newRoomBtn');
-    const roomModal   = document.getElementById('roomModal');
-    const closeModal  = document.getElementById('closeModal');
-    const roomForm    = document.getElementById('roomForm');
-    const modalTitle  = document.getElementById('modalTitle');
-    const formError   = document.getElementById('formError');
-    const roomNumber  = document.getElementById('roomNumber');
-    const roomType    = document.getElementById('roomType');
-    const roomPrice   = document.getElementById('roomPrice');
-    const roomStatus  = document.getElementById('roomStatus');
+    const hotelId    = '<%= hotelId %>';
+    const roomsTable = document.getElementById('roomsTable');
+    const newRoomBtn = document.getElementById('newRoomBtn');
+    const roomModal  = document.getElementById('roomModal');
+    const closeModal = document.getElementById('closeModal');
+    const roomForm   = document.getElementById('roomForm');
+    const modalTitle = document.getElementById('modalTitle');
+    const formError  = document.getElementById('formError');
+    const roomNumber = document.getElementById('roomNumber');
+    const roomType   = document.getElementById('roomType');
+    const roomPrice  = document.getElementById('roomPrice');
+    const roomStatus = document.getElementById('roomStatus');
 
     let isEditing = false;
     let editingId = null;
 
+    // Load rooms and render rows with drag handles
     async function loadRooms() {
-      const res = await fetch(`/api/rooms?hotel=${hotelId}`);
-      const data = await res.json();
-      roomsTable.innerHTML = data.map(r => `
-        <tr>
-          <td class="border px-4 py-2">${r.number}</td>
-          <td class="border px-4 py-2">${r.type}</td>
-          <td class="border px-4 py-2">${r.price}</td>
-          <td class="border px-4 py-2 capitalize">${r.status}</td>
-          <td class="border px-4 py-2 space-x-2">
-            <button data-id="${r.id}" class="editBtn text-blue-600">Edit</button>
-            <button data-id="${r.id}" class="deleteBtn text-red-600">Delete</button>
-          </td>
-        </tr>
-      `).join('');
+      try {
+        const res  = await fetch(`/api/rooms?hotel=${hotelId}`, { credentials: 'include' });
+        const data = await res.json();
+        roomsTable.innerHTML = data.map(r => `
+          <tr data-id="${r.id}" class="cursor-move">
+            <td class="border px-4 py-2">
+              <span class="drag-handle mr-2">☰</span>${r.number}
+            </td>
+            <td class="border px-4 py-2">${r.type}</td>
+            <td class="border px-4 py-2">${r.price}</td>
+            <td class="border px-4 py-2 capitalize">${r.status}</td>
+            <td class="border px-4 py-2 space-x-2">
+              <button data-id="${r.id}" class="editBtn text-blue-600">Edit</button>
+              <button data-id="${r.id}" class="deleteBtn text-red-600">Delete</button>
+            </td>
+          </tr>
+        `).join('');
 
-      document.querySelectorAll('.editBtn').forEach(btn =>
-        btn.addEventListener('click', async e => {
-          const id = e.target.dataset.id;
-          const res = await fetch(`/api/rooms/${id}`);
-          const r   = await res.json();
-          isEditing = true;
-          editingId = id;
-          modalTitle.textContent = 'Edit Room';
-          formError.classList.add('hidden');
-
-          roomNumber.value = r.number;
-          roomType.value   = r.type;
-          roomPrice.value  = r.price;
-          roomStatus.value = r.status;
-          roomModal.classList.remove('hidden');
-        })
-      );
-
-      document.querySelectorAll('.deleteBtn').forEach(btn =>
-        btn.addEventListener('click', async e => {
-          if (!confirm('Delete this room?')) return;
-          await fetch(`/api/rooms/${e.target.dataset.id}`, { method: 'DELETE' });
-          loadRooms();
-        })
-      );
+        // Attach edit/delete listeners after rows are injected
+        document.querySelectorAll('.editBtn').forEach(btn =>
+          btn.addEventListener('click', onEdit)
+        );
+        document.querySelectorAll('.deleteBtn').forEach(btn =>
+          btn.addEventListener('click', onDelete)
+        );
+      } catch (err) {
+        roomsTable.innerHTML = `
+          <tr><td colspan="5" class="text-red-600 p-4">
+            Failed to load rooms: ${err.message}
+          </td></tr>
+        `;
+      }
     }
 
+    // Edit handler
+    async function onEdit(e) {
+      const id = e.target.dataset.id;
+      try {
+        const res = await fetch(`/api/rooms/${id}`, { credentials: 'include' });
+        const r   = await res.json();
+        isEditing   = true;
+        editingId   = id;
+        modalTitle.textContent = 'Edit Room';
+        formError.classList.add('hidden');
+        roomNumber.value = r.number;
+        roomType.value   = r.type;
+        roomPrice.value  = r.price;
+        roomStatus.value = r.status;
+        roomModal.classList.remove('hidden');
+      } catch (err) {
+        alert('Failed to load room: ' + err.message);
+      }
+    }
+
+    // Delete handler
+    async function onDelete(e) {
+      if (!confirm('Delete this room?')) return;
+      try {
+        await fetch(`/api/rooms/${e.target.dataset.id}`, {
+          method: 'DELETE',
+          credentials: 'include'
+        });
+        loadRooms();
+      } catch (err) {
+        alert('Delete failed: ' + err.message);
+      }
+    }
+
+    // New Room button
     newRoomBtn.addEventListener('click', () => {
       isEditing = false;
       editingId = null;
@@ -132,10 +162,12 @@
       roomModal.classList.remove('hidden');
     });
 
+    // Close modal
     closeModal.addEventListener('click', () => {
       roomModal.classList.add('hidden');
     });
 
+    // Form submit for create/update
     roomForm.addEventListener('submit', async e => {
       e.preventDefault();
       formError.classList.add('hidden');
@@ -149,11 +181,13 @@
       try {
         const url    = isEditing ? `/api/rooms/${editingId}` : '/api/rooms';
         const method = isEditing ? 'PUT' : 'POST';
-        await fetch(url, {
+        const res    = await fetch(url, {
           method,
           headers: {'Content-Type':'application/json'},
+          credentials: 'include',
           body: JSON.stringify(payload)
         });
+        if (!res.ok) throw new Error('Error saving room');
         roomModal.classList.add('hidden');
         loadRooms();
       } catch (err) {
@@ -162,6 +196,27 @@
       }
     });
 
+    // Initialize Sortable for drag-and-drop reordering
+    new Sortable(roomsTable, {
+      handle:    '.drag-handle',
+      animation: 150,
+      onEnd: async () => {
+        const order = Array.from(roomsTable.children).map(tr => tr.dataset.id);
+        try {
+          const res = await fetch('/api/rooms/reorder', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({ order })
+          });
+          if (!res.ok) throw new Error('Reorder failed');
+        } catch (err) {
+          alert('Failed to save new order: ' + err.message);
+        }
+      }
+    });
+
+    // Initial load
     loadRooms();
   });
 </script>
