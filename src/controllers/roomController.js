@@ -1,25 +1,30 @@
 // src/controllers/roomController.js
-import Room from '../models/Room.js';
+
 import { validationResult } from 'express-validator';
+import Room from '../models/Room.js';
 
 /**
  * Create a new room.
+ * Expects: { hotel, number, type, price, status, visible }
  */
 export const createRoom = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
+
   try {
-    const { hotel, number, type, price, status } = req.body;
+    const { hotel, number, type, price, status, visible } = req.body;
+
     const room = await Room.create({
       number,
       type,
       price,
       status,
-      HotelId: hotel
-      // position will default to 0
+      visible,
+      HotelId: hotel,
     });
+
     res.status(201).json(room);
   } catch (err) {
     next(err);
@@ -27,18 +32,19 @@ export const createRoom = async (req, res, next) => {
 };
 
 /**
- * Fetch all rooms, optionally filtered by hotel,
- * always sorted by position ASC so ordering persists.
+ * Get all rooms, optionally filtered by hotel.
+ * Query: ?hotel=<hotelId>
  */
 export const getRooms = async (req, res, next) => {
   try {
-    const filter = {};
-    if (req.query.hotel) filter.HotelId = req.query.hotel;
+    const where = {};
+    if (req.query.hotel) where.HotelId = req.query.hotel;
 
     const rooms = await Room.findAll({
-      where: filter,
-      order: [['position', 'ASC']]
+      where,
+      order: [['position', 'ASC']],
     });
+
     res.json(rooms);
   } catch (err) {
     next(err);
@@ -46,12 +52,14 @@ export const getRooms = async (req, res, next) => {
 };
 
 /**
- * Fetch one room by PK.
+ * Get a single room by ID.
  */
 export const getRoom = async (req, res, next) => {
   try {
     const room = await Room.findByPk(req.params.id);
-    if (!room) return res.status(404).json({ msg: 'Room not found' });
+    if (!room) {
+      return res.status(404).json({ msg: 'Room not found' });
+    }
     res.json(room);
   } catch (err) {
     next(err);
@@ -60,18 +68,31 @@ export const getRoom = async (req, res, next) => {
 
 /**
  * Update a room.
+ * Body may include: hotel, number, type, price, status, visible
  */
 export const updateRoom = async (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
     return res.status(400).json({ errors: errors.array() });
   }
+
   try {
     const room = await Room.findByPk(req.params.id);
-    if (!room) return res.status(404).json({ msg: 'Room not found' });
+    if (!room) {
+      return res.status(404).json({ msg: 'Room not found' });
+    }
 
-    const { hotel, number, type, price, status } = req.body;
-    await room.update({ number, type, price, status, HotelId: hotel });
+    const { hotel, number, type, price, status, visible } = req.body;
+
+    await room.update({
+      number:   number   ?? room.number,
+      type:     type     ?? room.type,
+      price:    price    ?? room.price,
+      status:   status   ?? room.status,
+      visible:  visible  ?? room.visible,
+      HotelId:  hotel    ?? room.HotelId,
+    });
+
     res.json(room);
   } catch (err) {
     next(err);
@@ -79,12 +100,14 @@ export const updateRoom = async (req, res, next) => {
 };
 
 /**
- * Delete a room.
+ * Delete a room by ID.
  */
 export const deleteRoom = async (req, res, next) => {
   try {
     const room = await Room.findByPk(req.params.id);
-    if (!room) return res.status(404).json({ msg: 'Room not found' });
+    if (!room) {
+      return res.status(404).json({ msg: 'Room not found' });
+    }
 
     await room.destroy();
     res.json({ msg: 'Room deleted' });
@@ -94,23 +117,27 @@ export const deleteRoom = async (req, res, next) => {
 };
 
 /**
- * Reorder rooms after drag-and-drop.
- * Expects: { order: [ '3', '1', '4', ... ] }
+ * Reorder rooms based on an array of IDs, saving each as its new `position`.
+ * Expects: { order: [id1, id2, id3, ...] }
  */
 export const reorderRooms = async (req, res, next) => {
   try {
-    const { order } = req.body;
+    const { order } = req.body; // e.g. ["3","1","2"]
+
     if (!Array.isArray(order)) {
-      return res.status(400).json({ msg: 'Invalid payload: expected array of IDs' });
+      return res.status(400).json({ msg: 'Order must be an array of room IDs' });
     }
-    // update each room’s position
+
+    // Update each room's position in the given sequence
     for (let idx = 0; idx < order.length; idx++) {
+      const id = order[idx];
       await Room.update(
         { position: idx },
-        { where: { id: order[idx] } }
+        { where: { id } }
       );
     }
-    res.json({ msg: 'Room order updated' });
+
+    res.json({ msg: 'Rooms reordered' });
   } catch (err) {
     next(err);
   }

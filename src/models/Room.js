@@ -1,27 +1,32 @@
-// src/models/Room.js
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/sequelize.js';
 import Hotel from './Hotel.js';
 
 const Room = sequelize.define('Room', {
-  number:   {
+  number: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  type:     {
+  type: {
     type: DataTypes.STRING,
     allowNull: false
   },
-  price:    {
+  price: {
     type: DataTypes.DECIMAL(10, 2),
     allowNull: false
   },
-  status:   {
+  status: {
     type: DataTypes.ENUM('available', 'booked'),
     allowNull: false,
     defaultValue: 'available'
   },
-  // ← New field to hold the drag-order index
+  // ← NEW: whether to show this room in the scheduler
+  visible: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: true
+  },
+  // drag-order index
   position: {
     type: DataTypes.INTEGER,
     allowNull: false,
@@ -30,6 +35,6 @@ const Room = sequelize.define('Room', {
 });
 
 Room.belongsTo(Hotel, { foreignKey: 'HotelId' });
-Hotel.hasMany(Room, { foreignKey: 'HotelId' });
+Hotel.hasMany(Room,   { foreignKey: 'HotelId' });
 
 export default Room;

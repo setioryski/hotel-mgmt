@@ -20,6 +20,7 @@
       <th class="px-4 py-2">Type</th>
       <th class="px-4 py-2">Price</th>
       <th class="px-4 py-2">Status</th>
+      <th class="px-4 py-2 text-center">Visible</th>
       <th class="px-4 py-2">Actions</th>
     </tr>
   </thead>
@@ -82,11 +83,12 @@
     let isEditing = false;
     let editingId = null;
 
-    // Load rooms and render rows with drag handles
+    // Load rooms and render rows with drag handles + visibility toggle
     async function loadRooms() {
       try {
         const res  = await fetch(`/api/rooms?hotel=${hotelId}`, { credentials: 'include' });
         const data = await res.json();
+
         roomsTable.innerHTML = data.map(r => `
           <tr data-id="${r.id}" class="cursor-move">
             <td class="border px-4 py-2">
@@ -95,6 +97,14 @@
             <td class="border px-4 py-2">${r.type}</td>
             <td class="border px-4 py-2">${r.price}</td>
             <td class="border px-4 py-2 capitalize">${r.status}</td>
+            <td class="border px-4 py-2 text-center">
+              <input
+                type="checkbox"
+                class="toggleVisible"
+                data-id="${r.id}"
+                ${r.visible ? 'checked' : ''}
+              >
+            </td>
             <td class="border px-4 py-2 space-x-2">
               <button data-id="${r.id}" class="editBtn text-blue-600">Edit</button>
               <button data-id="${r.id}" class="deleteBtn text-red-600">Delete</button>
@@ -102,16 +112,34 @@
           </tr>
         `).join('');
 
-        // Attach edit/delete listeners after rows are injected
+        // Attach edit/delete listeners
         document.querySelectorAll('.editBtn').forEach(btn =>
           btn.addEventListener('click', onEdit)
         );
         document.querySelectorAll('.deleteBtn').forEach(btn =>
           btn.addEventListener('click', onDelete)
         );
+
+        // Attach visibility-toggle listeners
+        document.querySelectorAll('.toggleVisible').forEach(cb =>
+          cb.addEventListener('change', async (e) => {
+            const id = e.target.dataset.id;
+            const visible = e.target.checked;
+            try {
+              await fetch(`/api/rooms/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ visible })
+              });
+            } catch (err) {
+              alert('Failed to update visibility: ' + err.message);
+            }
+          })
+        );
       } catch (err) {
         roomsTable.innerHTML = `
-          <tr><td colspan="5" class="text-red-600 p-4">
+          <tr><td colspan="6" class="text-red-600 p-4">
             Failed to load rooms: ${err.message}
           </td></tr>
         `;
@@ -124,8 +152,8 @@
       try {
         const res = await fetch(`/api/rooms/${id}`, { credentials: 'include' });
         const r   = await res.json();
-        isEditing   = true;
-        editingId   = id;
+        isEditing = true;
+        editingId = id;
         modalTitle.textContent = 'Edit Room';
         formError.classList.add('hidden');
         roomNumber.value = r.number;
@@ -183,7 +211,7 @@
         const method = isEditing ? 'PUT' : 'POST';
         const res    = await fetch(url, {
           method,
-          headers: {'Content-Type':'application/json'},
+          headers: { 'Content-Type': 'application/json' },
           credentials: 'include',
           body: JSON.stringify(payload)
         });

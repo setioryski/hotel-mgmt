@@ -1,4 +1,3 @@
-// src/routes/roomRoutes.js
 import express from 'express';
 import { body } from 'express-validator';
 import { protect, authorize } from '../middlewares/auth.js';
@@ -8,7 +7,7 @@ import {
   getRoom,
   updateRoom,
   deleteRoom,
-  reorderRooms
+  reorderRooms    // if you still use reorder
 } from '../controllers/roomController.js';
 
 const router = express.Router();
@@ -20,20 +19,21 @@ router.use(protect, authorize('admin'));
 router.post(
   '/',
   [
-    body('hotel', 'Hotel is required').notEmpty(),
-    body('number', 'Room number is required').notEmpty(),
-    body('type', 'Room type is required').notEmpty(),
-    body('price', 'Price must be a decimal').isDecimal(),
-    body('status').optional().isIn(['available', 'booked'])
+    body('hotel',    'Hotel is required').notEmpty(),
+    body('number',   'Room number is required').notEmpty(),
+    body('type',     'Room type is required').notEmpty(),
+    body('price',    'Price must be a decimal').isDecimal(),
+    body('status').optional().isIn(['available','booked']),
+    body('visible').optional().isBoolean()    // ← NEW
   ],
   createRoom
 );
 
-// Read: list + single
-router.get('/', getRooms);
+// List & single fetch
+router.get('/',    getRooms);
 router.get('/:id', getRoom);
 
-// Update
+// Update a room
 router.put(
   '/:id',
   [
@@ -41,7 +41,8 @@ router.put(
     body('number').optional().notEmpty(),
     body('type').optional().notEmpty(),
     body('price').optional().isDecimal(),
-    body('status').optional().isIn(['available', 'booked'])
+    body('status').optional().isIn(['available','booked']),
+    body('visible').optional().isBoolean()    // ← NEW
   ],
   updateRoom
 );
@@ -49,9 +50,8 @@ router.put(
 // Delete
 router.delete('/:id', deleteRoom);
 
-// ← New: Reorder endpoint
-router.post(
-  '/reorder',
+// Reorder (if still used)
+router.post('/reorder',
   [ body('order').isArray().withMessage('Order must be an array of IDs') ],
   reorderRooms
 );

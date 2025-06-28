@@ -146,10 +146,13 @@ function CalendarScheduler({ initialHotelId }) {
       apiService.getBlocks(selectedHotel),
     ])
       .then(([roomsResp, bookingsResp, blocksResp]) => {
-        const rooms = Array.isArray(roomsResp) ? roomsResp : roomsResp.data || [];
-        setRoomTypes([...new Set(rooms.map((r) => r.type))].sort());
-        const prices = {};
-        rooms.forEach((r) => { prices[r.id] = r.price; });
+  const roomsAll = Array.isArray(roomsResp)
+    ? roomsResp
+    : roomsResp.data || [];
+  const rooms = roomsAll.filter(r => r.visible);
+  setRoomTypes([...new Set(rooms.map(r => r.type))].sort());
+  const prices = {};
+  rooms.forEach(r => { prices[r.id] = r.price; });
         setRoomPrices(prices);
 
         const resourceNameRenderer = (r) => (
