@@ -1,6 +1,5 @@
-// src/controllers/blockController.js
-
 import { Op } from 'sequelize';
+import { getIO } from '../socket.js';
 import RoomBlock from '../models/RoomBlock.js';
 import Room from '../models/Room.js';
 
@@ -21,7 +20,13 @@ export const createBlock = async (req, res, next) => {
         RoomId: room,
         [Op.or]: [
           { startDate: { [Op.between]: [startDate, endDate] } },
-          { endDate:   { [Op.between]: [startDate, endDate] } }
+          { endDate: { [Op.between]: [startDate, endDate] } },
+          {
+            [Op.and]: [
+              { startDate: { [Op.lte]: startDate } },
+              { endDate: { [Op.gte]: endDate } }
+            ]
+          }
         ]
       }
     });
@@ -29,12 +34,19 @@ export const createBlock = async (req, res, next) => {
       return res.status(400).json({ msg: 'This room is already blocked during the specified period.' });
     }
 
+    // Create the block
     const block = await RoomBlock.create({
       RoomId: room,
       startDate,
       endDate,
       reason: reason || 'Blocked',
     });
+
+    // Emit real-time update to clients in this hotel
+    const io = getIO();
+    const roomName = `hotel_${roomDoc.HotelId}`;
+    io.to(roomName).emit('dataUpdated');
+    console.log(`Socket event 'dataUpdated' emitted after block creation to room: ${roomName}`);
 
     res.status(201).json(block);
   } catch (err) {
@@ -82,7 +94,24 @@ export const deleteBlock = async (req, res, next) => {
     if (!block) {
       return res.status(404).json({ msg: 'Block not found' });
     }
+
+    // Find hotel via room
+    const roomDoc = await Room.findByPk(block.RoomId);
+    if (!roomDoc) {
+      // Proceed with deletion but cannot emit
+      await block.destroy();
+      return res.json({ msg: 'Room unblocked.' });
+    }
+
+    // Delete the block
     await block.destroy();
+
+    // Emit real-time update to clients in this hotel
+    const io = getIO();
+    const roomName = `hotel_${roomDoc.HotelId}`;
+    io.to(roomName).emit('dataUpdated');
+    console.log(`Socket event 'dataUpdated' emitted after block deletion to room: ${roomName}`);
+
     res.json({ msg: 'Room unblocked.' });
   } catch (err) {
     next(err);
