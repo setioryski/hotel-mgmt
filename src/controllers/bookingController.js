@@ -1,20 +1,17 @@
-// src/controllers/bookingController.js
-
 import { Op } from 'sequelize';
 import Booking from '../models/Booking.js';
 import Guest from '../models/Guest.js';
 import Room from '../models/Room.js';
 import Hotel from '../models/Hotel.js';
+import RoomBlock from '../models/RoomBlock.js'; // Import RoomBlock model
 import AccountingEntry from '../models/AccountingEntry.js';
-import { getIO } from '../socket.js'; // Import the getIO function
+import { getIO } from '../socket.js';
 
 const ALLOWED_INITIAL_STATUSES = ['tentative', 'booked'];
 const ALL_STATUSES = ['tentative', 'booked', 'checkedin', 'checkedout', 'cancelled'];
 
 /**
  * Helper function to emit a 'dataUpdated' event to the appropriate hotel room via Socket.IO.
- * This notifies all connected clients for a specific hotel that they need to refresh their data.
- * @param {number|string} hotelId - The ID of the hotel whose clients should be notified.
  */
 const notifyClients = (hotelId) => {
   if (!hotelId) return;
@@ -24,9 +21,9 @@ const notifyClients = (hotelId) => {
   console.log(`Socket event 'dataUpdated' emitted to room: ${roomName}`);
 };
 
-
 /**
  * Create a new booking.
+ * ✅ Validates against existing blocks and bookings.
  * Automatically generates an 'income' accounting entry.
  * Notifies clients via WebSocket upon successful creation.
  */
@@ -48,6 +45,33 @@ export const createBooking = async (req, res, next) => {
     if (!roomDoc || !guestDoc) {
       return res.status(404).json({ msg: 'Invalid room or guest ID' });
     }
+    
+    // --- FIX START: Add conflict validation ---
+    // 1. Check for overlapping room blocks
+    const overlappingBlock = await RoomBlock.findOne({
+      where: {
+        RoomId: roomId,
+        startDate: { [Op.lt]: endDate },
+        endDate: { [Op.gt]: startDate },
+      },
+    });
+    if (overlappingBlock) {
+      return res.status(409).json({ msg: 'This date range is blocked and cannot be booked.' });
+    }
+
+    // 2. Check for overlapping bookings
+    const overlappingBooking = await Booking.findOne({
+      where: {
+        RoomId: roomId,
+        status: { [Op.ne]: 'cancelled' },
+        startDate: { [Op.lt]: endDate },
+        endDate: { [Op.gt]: startDate },
+      },
+    });
+    if (overlappingBooking) {
+      return res.status(409).json({ msg: 'This date range is already booked.' });
+    }
+    // --- FIX END ---
 
     const bookingStatus = (status && ALLOWED_INITIAL_STATUSES.includes(status)) ? status : 'booked';
 
@@ -57,24 +81,97 @@ export const createBooking = async (req, res, next) => {
       startDate,
       endDate,
       price: overrideRate || roomDoc.price,
-      totalPrice: overrideTotal || roomDoc.price, // Simplified logic for total, adjust if needed
+      totalPrice: overrideTotal || roomDoc.price,
       status: bookingStatus,
       notes,
     });
 
     await AccountingEntry.create({
-        type: 'income',
-        amount: booking.totalPrice,
-        description: `Booking #${booking.id} (${guestDoc.name})`,
-        date: startDate,
-        HotelId: roomDoc.HotelId,
-        BookingId: booking.id,
+      type: 'income',
+      amount: booking.totalPrice,
+      description: `Booking #${booking.id} (${guestDoc.name})`,
+      date: startDate,
+      HotelId: roomDoc.HotelId,
+      BookingId: booking.id,
     });
     
-    // Notify clients that new data is available
     notifyClients(roomDoc.HotelId);
 
     res.status(201).json(booking);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Update an existing booking.
+ * ✅ Validates against existing blocks and bookings.
+ * Handles changes in dates, price, status, or room.
+ * Notifies clients of the original and new hotel (if changed).
+ */
+export const updateBooking = async (req, res, next) => {
+  try {
+    const bookingId = req.params.id;
+    const booking = await Booking.findByPk(bookingId, { include: { model: Room, include: [Hotel] } });
+    if (!booking) {
+      return res.status(404).json({ msg: 'Booking not found' });
+    }
+
+    // --- FIX START: Add conflict validation ---
+    const checkRoomId = req.body.RoomId || booking.RoomId;
+    const checkStartDate = req.body.startDate || booking.startDate;
+    const checkEndDate = req.body.endDate || booking.endDate;
+
+    // 1. Check for overlapping room blocks
+    const overlappingBlock = await RoomBlock.findOne({
+        where: {
+            RoomId: checkRoomId,
+            startDate: { [Op.lt]: checkEndDate },
+            endDate: { [Op.gt]: checkStartDate },
+        },
+    });
+    if (overlappingBlock) {
+        return res.status(409).json({ msg: 'This date range is blocked and cannot be booked.' });
+    }
+
+    // 2. Check for overlapping bookings (excluding the current one)
+    const overlappingBooking = await Booking.findOne({
+        where: {
+            id: { [Op.ne]: bookingId }, // Exclude the booking being updated
+            RoomId: checkRoomId,
+            status: { [Op.ne]: 'cancelled' },
+            startDate: { [Op.lt]: checkEndDate },
+            endDate: { [Op.gt]: checkStartDate },
+        },
+    });
+    if (overlappingBooking) {
+        return res.status(409).json({ msg: 'This date range is already booked by another party.' });
+    }
+    // --- FIX END ---
+    
+    const originalHotelId = booking.Room.Hotel.id;
+
+    await booking.update(req.body);
+
+    const updatedBooking = await Booking.findByPk(bookingId, { include: [{ model: Room, include: [Hotel] }, Guest] });
+    const newHotelId = updatedBooking.Room.Hotel.id;
+
+    const entry = await AccountingEntry.findOne({ where: { BookingId: updatedBooking.id } });
+    if (entry) {
+      await entry.update({
+        amount: updatedBooking.totalPrice,
+        description: `Booking #${updatedBooking.id} (${updatedBooking.Guest?.name})`,
+        date: updatedBooking.startDate,
+        HotelId: newHotelId,
+      });
+    }
+
+    notifyClients(originalHotelId);
+    if (originalHotelId !== newHotelId) {
+        notifyClients(newHotelId);
+    }
+
+    res.json(updatedBooking);
   } catch (err) {
     next(err);
   }
@@ -93,7 +190,7 @@ export const getBookings = async (req, res, next) => {
       }).then(rooms => rooms.map(r => r.id));
       where.RoomId = { [Op.in]: roomIds };
     } else {
-        return res.json([]); // Return empty if no hotel is specified
+        return res.json([]);
     }
 
     const bookings = await Booking.findAll({ where, include: [Room, Guest] });
@@ -118,54 +215,8 @@ export const getBookings = async (req, res, next) => {
   }
 };
 
-
-/**
- * Update an existing booking.
- * Handles changes in dates, price, status, or room.
- * Notifies clients of the original and new hotel (if changed).
- */
-export const updateBooking = async (req, res, next) => {
-  try {
-    const booking = await Booking.findByPk(req.params.id, { include: { model: Room, include: [Hotel] } });
-    if (!booking) {
-      return res.status(404).json({ msg: 'Booking not found' });
-    }
-    
-    const originalHotelId = booking.Room.Hotel.id;
-
-    await booking.update(req.body);
-
-    const updatedBooking = await Booking.findByPk(req.params.id, { include: [{ model: Room, include: [Hotel] }, Guest] });
-    const newHotelId = updatedBooking.Room.Hotel.id;
-
-    // Update the associated accounting entry
-    const entry = await AccountingEntry.findOne({ where: { BookingId: updatedBooking.id } });
-    if (entry) {
-      await entry.update({
-        amount: updatedBooking.totalPrice,
-        description: `Booking #${updatedBooking.id} (${updatedBooking.Guest?.name})`,
-        date: updatedBooking.startDate,
-        HotelId: newHotelId,
-      });
-    }
-
-    // Notify clients of the original hotel
-    notifyClients(originalHotelId);
-    // If the booking was moved to a different hotel, notify its clients too
-    if (originalHotelId !== newHotelId) {
-        notifyClients(newHotelId);
-    }
-
-    res.json(updatedBooking);
-  } catch (err) {
-    next(err);
-  }
-};
-
-
 /**
  * Cancel a booking by setting its status to 'cancelled'.
- * This is a soft-delete. It also creates a refund accounting entry.
  */
 export const cancelBooking = async (req, res, next) => {
   try {
@@ -177,7 +228,6 @@ export const cancelBooking = async (req, res, next) => {
     const hotelId = booking.Room.Hotel.id;
     await booking.update({ status: 'cancelled' });
 
-    // Create a refund entry
     await AccountingEntry.create({
       type: 'expense',
       amount: booking.totalPrice,
@@ -197,7 +247,6 @@ export const cancelBooking = async (req, res, next) => {
 
 /**
  * Permanently delete a booking from the database.
- * Use with caution.
  */
 export const deleteBooking = async (req, res, next) => {
     try {
@@ -207,11 +256,9 @@ export const deleteBooking = async (req, res, next) => {
         }
 
         const hotelId = booking.Room.Hotel.id;
-
-        // Delete associated accounting entries first to maintain referential integrity
+        
         await AccountingEntry.destroy({ where: { BookingId: booking.id } });
-
-        // Then delete the booking itself
+        
         await booking.destroy();
 
         notifyClients(hotelId);
