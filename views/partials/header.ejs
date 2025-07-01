@@ -10,8 +10,9 @@
         <li><a href="/guest/dashboard" class="hover:underline">My Bookings</a></li>
         <li><a href="/guest/profile"   class="hover:underline">Profile</a></li>
       <% } %>
+
       <% if (user) { %>
-        <li><button onclick="localStorage.removeItem('token');location.href='/login'" class="hover:underline">Logout</button></li>
+        <li><a href="/logout" class="hover:underline">Logout</a></li>
       <% } else { %>
         <li><a href="/login" class="hover:underline">Login</a></li>
       <% } %>
