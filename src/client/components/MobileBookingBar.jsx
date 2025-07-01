@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { format } from 'date-fns';
 
 const MobileBookingBar = ({
   visible,
@@ -10,6 +11,21 @@ const MobileBookingBar = ({
   onSubmit,
   onClose,
 }) => {
+  // This hook runs when the component's visibility changes.
+  useEffect(() => {
+    // We only set the default dates when the booking bar appears
+    // and if the dates haven't been set already.
+    if (visible && !checkin && !checkout) {
+      const today = new Date();
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+
+      // Call the state update functions passed from the parent component
+      setCheckin(format(today, 'yyyy-MM-dd'));
+      setCheckout(format(tomorrow, 'yyyy-MM-dd'));
+    }
+  }, [visible, checkin, checkout, setCheckin, setCheckout]); // Dependency array ensures this runs at the right time
+
   if (!visible || !room) return null;
 
   return (
@@ -24,7 +40,7 @@ const MobileBookingBar = ({
           <input
             type="date"
             className="w-full border px-2 py-1 rounded"
-            value={checkin}
+            value={checkin} // Value is controlled by parent
             onChange={(e) => setCheckin(e.target.value)}
           />
         </div>
@@ -33,7 +49,7 @@ const MobileBookingBar = ({
           <input
             type="date"
             className="w-full border px-2 py-1 rounded"
-            value={checkout}
+            value={checkout} // Value is controlled by parent
             onChange={(e) => setCheckout(e.target.value)}
           />
         </div>
