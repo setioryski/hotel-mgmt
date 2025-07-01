@@ -1,3 +1,4 @@
+// src/middlewares/auth.js
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import dotenv from 'dotenv';
@@ -6,48 +7,49 @@ dotenv.config();
 
 /**
  * @description Protect routes by verifying JWT token.
- * Attaches the user to the request object (req.user).
+ * Attaches the user to req.user and to res.locals.user for EJS.
  */
 export const protect = async (req, res, next) => {
   let token;
 
-  // Check for token in Authorization header (for APIs) or cookies (for web)
+  // 1) Look for Bearer token in headers (API) or HttpOnly cookie (web)
   if (req.headers.authorization?.startsWith('Bearer ')) {
     token = req.headers.authorization.split(' ')[1];
   } else if (req.cookies.token) {
     token = req.cookies.token;
   }
 
-  // Ensure token exists
+  // 2) If no token, block access
   if (!token) {
-    // For API requests, send JSON. For browser requests, redirect.
     if (req.originalUrl.startsWith('/api/')) {
-        return res.status(401).json({ success: false, msg: 'Not authorized, no token' });
+      return res.status(401).json({ success: false, msg: 'Not authorized, no token' });
     }
     return res.redirect('/login');
   }
 
   try {
-    // Verify token
+    // 3) Verify & decode
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Find user by ID from token payload and attach to request
-    // Exclude password from the user object
-    req.user = await User.findByPk(decoded.id, {
-        attributes: { exclude: ['password'] }
+    // 4) Look up user, exclude password
+    const user = await User.findByPk(decoded.id, {
+      attributes: { exclude: ['password'] }
     });
 
-    if (!req.user) {
-        throw new Error('User not found');
+    if (!user) {
+      throw new Error('User not found');
     }
+
+    // 5) Attach to req and make available to EJS
+    req.user = user;
+    res.locals.user = user;
 
     next();
   } catch (err) {
-    // For API requests, send JSON. For browser requests, redirect.
     if (req.originalUrl.startsWith('/api/')) {
-        return res.status(401).json({ success: false, msg: 'Not authorized, token failed' });
+      return res.status(401).json({ success: false, msg: 'Not authorized, token failed' });
     }
-    // Clear cookie and redirect on failure
+    // clear bad cookie and force login
     res.clearCookie('token');
     return res.redirect('/login');
   }
@@ -55,13 +57,22 @@ export const protect = async (req, res, next) => {
 
 /**
  * @description Grant access to specific roles.
- * This middleware must run *after* the `protect` middleware.
- * @param {...string} roles - List of roles allowed to access the route.
+ * Must run *after* protect.
  */
 export const authorize = (...roles) => {
   return (req, res, next) => {
     if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ success: false, msg: `Forbidden. User role '${req.user.role}' is not authorized to access this route.` });
+      // For API endpoints:
+      if (req.originalUrl.startsWith('/api/')) {
+        return res.status(403).json({
+          success: false,
+          msg: `Forbidden. Role '${req.user?.role}' not permitted.`,
+        });
+      }
+      // For web pages:
+      return res.status(403).render('error', {
+        message: 'Forbidden: you do not have access to this page.',
+      });
     }
     next();
   };
