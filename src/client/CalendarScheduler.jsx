@@ -25,6 +25,7 @@ import SchedulerLegend from './components/SchedulerLegend';
 import BookingModal from './components/BookingModal';
 import BlockModal from './components/BlockModal';
 import MobileBookingBar from './components/MobileBookingBar';
+import GroupBookingModal from './components/GroupBookingModal';
 
 
 // Prevent mobile text selection & allow taps
@@ -104,6 +105,8 @@ function CalendarScheduler({ initialHotelId }) {
   const [blockEnd, setBlockEnd] = useState('');
   const [blockReason, setBlockReason] = useState('');
   const [blockFormError, setBlockFormError] = useState('');
+  const [groupModalVisible, setGroupModalVisible] = useState(false);
+  const [selectedRooms, setSelectedRooms] = useState([]);
 
   // Confirm modal state
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
@@ -114,6 +117,7 @@ function CalendarScheduler({ initialHotelId }) {
   // Refs
   const guestInputRef = useRef();
   const schedulerWrapperRef = useRef(null);
+  
   
   // ────────────────────────────────────────────────────────────
   // Confirm modal controls (Local UI logic)
@@ -404,6 +408,41 @@ function CalendarScheduler({ initialHotelId }) {
       setBookingFormError(err.message);
     }
   };
+
+  const handleGroupBookingSubmit = async (e) => {
+   e.preventDefault();
+   setBookingFormError('');
+   if (selectedRooms.length === 0) {
+     return setBookingFormError('Please select at least one room.');
+   }
+   if (!selectedGuest) {
+     return setBookingFormError('Please select or create a guest.');
+   }
+   const startISO = `${bookingStart}T12:00:00`;
+   const endISO   = `${bookingEnd}T11:59:00`;
+   if (new Date(startISO) >= new Date(endISO)) {
+     return setBookingFormError('Check-out must be after check-in.');
+  }
+
+   const payload = selectedRooms.map(rid => ({
+     room:       rid,
+     guest:      selectedGuest,
+     startDate:  startISO,
+     endDate:    endISO,
+     status:     bookingStatus,
+     price:      bookingPrice,
+     totalPrice: bookingTotal,
+     notes:      bookingNotes,
+   }));
+
+   try {
+     await apiService.createGroupBooking(payload);
+     toast.success('Group booking created!');
+     setGroupModalVisible(false);
+   } catch (err) {
+     setBookingFormError(err.message);
+   }
+ };
 
   const handleCancelBooking = async () => {
     if (!editingBookingId) return;
@@ -734,6 +773,25 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
         setIsBlockMode={setIsBlockMode}
       />
 
+           <button
+       onClick={() => {
+         // reset any stale group form state
+          setSelectedRooms([]);
+          setBookingStart('');
+          setBookingEnd('');
+          setBookingPrice('');
+          setBookingTotal('');
+          setGuestSearch('');
+          setSelectedGuest('');
+          setBookingNotes('');
+          setBookingFormError('');
+          setGroupModalVisible(true);
+        }}
+        className="mb-4 px-3 py-1 border rounded bg-green-500 text-white"
+      >
+        Group Booking
+     </button>
+
       {isLoading ? (
         <div className="text-center py-10">Loading Scheduler...</div>
       ) : (
@@ -835,7 +893,29 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
         onSubmit={handleMobileBookingSubmit}
         onClose={() => setMobileBookingRoom(null)}
       />
-
+      <GroupBookingModal
+        visible={groupModalVisible}
+        formError={bookingFormError}
+        selectedRooms={selectedRooms}
+        setSelectedRooms={setSelectedRooms}
+        resources={resources}
+        bookingStart={bookingStart}
+        setBookingStart={setBookingStart}
+        bookingEnd={bookingEnd}
+        setBookingEnd={setBookingEnd}
+        guestSearch={guestSearch}
+        setGuestSearch={setGuestSearch}
+        showGuestSuggestions={showGuestSuggestions}
+        setShowGuestSuggestions={setShowGuestSuggestions}
+        filteredGuests={filteredGuests}
+        selectedGuest={selectedGuest}
+        setSelectedGuest={setSelectedGuest}
+        onCreateGuest={() => setNewGuestMode(true)}
+        bookingNotes={bookingNotes}
+        setBookingNotes={setBookingNotes}
+        handleSubmit={handleGroupBookingSubmit}
+        closeModal={() => setGroupModalVisible(false)}
+     />
       <ConfirmModal
         visible={confirmModalVisible}
         title={confirmTitle}

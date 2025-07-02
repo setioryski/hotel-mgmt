@@ -104,6 +104,91 @@ export const createBooking = async (req, res, next) => {
 };
 
 /**
+ * Create multiple bookings in one request.
+ */
+export const createGroup = async (req, res, next) => {
+  try {
+    const bookingsData = req.body; // expecting an array
+    if (!Array.isArray(bookingsData) || bookingsData.length === 0) {
+      return res.status(400).json({ msg: 'Expected a non-empty array of bookings.' });
+    }
+
+    const created = [];
+    for (const data of bookingsData) {
+      const {
+        room: roomId,
+        guest: guestId,
+        startDate,
+        endDate,
+        status,
+        price: overrideRate,
+        totalPrice: overrideTotal,
+        notes,
+      } = data;
+
+      // Validate room & guest
+      const roomDoc = await Room.findByPk(roomId, { include: Hotel });
+      const guestDoc = await Guest.findByPk(guestId);
+      if (!roomDoc || !guestDoc) {
+        return res.status(404).json({ msg: 'Invalid room or guest ID in one of the bookings.' });
+      }
+
+      // Conflict checks
+      const overlappingBlock = await RoomBlock.findOne({
+        where: {
+          RoomId: roomId,
+          startDate: { [Op.lt]: endDate },
+          endDate: { [Op.gt]: startDate },
+        },
+      });
+      if (overlappingBlock) {
+        return res.status(409).json({ msg: `Date range blocked for room ${roomId}.` });
+      }
+      const overlappingBooking = await Booking.findOne({
+        where: {
+          RoomId: roomId,
+          status: { [Op.ne]: 'cancelled' },
+          startDate: { [Op.lt]: endDate },
+          endDate: { [Op.gt]: startDate },
+        },
+      });
+      if (overlappingBooking) {
+        return res.status(409).json({ msg: `Date range already booked for room ${roomId}.` });
+      }
+
+      const bookingStatus = (status && ALLOWED_INITIAL_STATUSES.includes(status)) ? status : 'booked';
+
+      const booking = await Booking.create({
+        RoomId: roomId,
+        GuestId: guestId,
+        startDate,
+        endDate,
+        price: overrideRate || roomDoc.price,
+        totalPrice: overrideTotal || roomDoc.price,
+        status: bookingStatus,
+        notes,
+      });
+
+      await AccountingEntry.create({
+        type: 'income',
+        amount: booking.totalPrice,
+        description: `Booking #${booking.id} (${guestDoc.name})`,
+        date: startDate,
+        HotelId: roomDoc.HotelId,
+        BookingId: booking.id,
+      });
+
+      notifyClients(roomDoc.HotelId);
+      created.push(booking);
+    }
+
+    res.status(201).json(created);
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
  * Update an existing booking.
  * ✅ Validates against existing blocks and bookings.
  * Handles changes in dates, price, status, or room.
@@ -148,7 +233,7 @@ export const updateBooking = async (req, res, next) => {
         return res.status(409).json({ msg: 'This date range is already booked by another party.' });
     }
     // --- FIX END ---
-    
+
     const originalHotelId = booking.Room.Hotel.id;
 
     await booking.update(req.body);

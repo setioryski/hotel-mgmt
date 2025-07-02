@@ -33,7 +33,7 @@ export class ApiService {
       return data;
     } catch (err) {
       console.error(`API call to ${endpoint} failed:`, err);
-      throw err; // Re-throw the error to be caught by the calling function
+      throw err;
     }
   }
 
@@ -51,6 +51,13 @@ export class ApiService {
   createBooking = (data) => this._fetchJSON('/bookings', { method: 'POST', body: JSON.stringify(data) });
   updateBooking = (id, data) => this._fetchJSON(`/bookings/${id}`, { method: 'PUT', body: JSON.stringify(data) });
   deleteBooking = (id) => this._fetchJSON(`/bookings/${id}`, { method: 'DELETE' });
+
+  // --- Group Booking Endpoint ---
+  createGroupBooking = (bookings) =>
+    this._fetchJSON('/bookings/group', {
+      method: 'POST',
+      body: JSON.stringify(bookings),
+    });
 
   // --- Block Endpoints ---
   getBlocks = (hotelId) => this._fetchJSON(`/blocks?hotel=${hotelId}`);
