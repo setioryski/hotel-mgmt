@@ -1,63 +1,100 @@
 <% title = 'Manage Rooms' %>
 
-<a href="/admin/hotels" class="text-sm text-gray-600 hover:underline mb-4 inline-block">
-  ← Back to Hotels
-</a>
+<div class="container mx-auto p-4">
+  <a
+    href="/admin/hotels"
+    class="text-sm text-gray-600 hover:underline mb-4 inline-block w-full sm:w-auto"
+  >
+    ← Back to Hotels
+  </a>
 
-<h1 class="text-2xl font-bold mb-4">Rooms for Hotel #<%= hotelId %></h1>
+  <h1 class="text-2xl font-bold mb-4">Rooms for Hotel #<%= hotelId %></h1>
 
-<button
-  id="newRoomBtn"
-  class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mb-4"
->
-  + New Room
-</button>
+  <button
+    id="newRoomBtn"
+    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mb-4 w-full sm:w-auto"
+  >
+    + New Room
+  </button>
 
-<table class="min-w-full bg-white rounded shadow overflow-hidden mb-8">
-  <thead class="bg-gray-100">
-    <tr>
-      <th class="px-4 py-2">Number</th>
-      <th class="px-4 py-2">Type</th>
-      <th class="px-4 py-2">Price</th>
-      <th class="px-4 py-2">Status</th>
-      <th class="px-4 py-2 text-center">Visible</th>
-      <th class="px-4 py-2">Actions</th>
-    </tr>
-  </thead>
-  <tbody id="roomsTable"></tbody>
-</table>
+  <div class="overflow-x-auto">
+    <table class="min-w-full bg-white rounded shadow overflow-hidden mb-8">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2">Number</th>
+          <th class="px-4 py-2">Type</th>
+          <th class="px-4 py-2">Price</th>
+          <th class="px-4 py-2">Status</th>
+          <th class="px-4 py-2 text-center">Visible</th>
+          <th class="px-4 py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="roomsTable"></tbody>
+    </table>
+  </div>
+</div>
 
 <!-- Room Modal -->
 <div
   id="roomModal"
   class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50"
 >
-  <div class="bg-white p-6 rounded shadow w-96">
+  <div class="bg-white p-6 rounded shadow w-full max-w-sm mx-4">
     <h2 class="text-xl font-semibold mb-4" id="modalTitle">New Room</h2>
     <div id="formError" class="text-red-600 mb-2 hidden"></div>
     <form id="roomForm" class="space-y-4">
       <div>
         <label class="block font-medium">Room Number</label>
-        <input type="text" id="roomNumber" class="w-full border px-2 py-1 rounded" required />
+        <input
+          type="text"
+          id="roomNumber"
+          class="w-full border px-2 py-1 rounded"
+          required
+        />
       </div>
       <div>
         <label class="block font-medium">Type</label>
-        <input type="text" id="roomType" class="w-full border px-2 py-1 rounded" required />
+        <input
+          type="text"
+          id="roomType"
+          class="w-full border px-2 py-1 rounded"
+          required
+        />
       </div>
       <div>
         <label class="block font-medium">Price</label>
-        <input type="number" step="0.01" id="roomPrice" class="w-full border px-2 py-1 rounded" required />
+        <input
+          type="number"
+          step="0.01"
+          id="roomPrice"
+          class="w-full border px-2 py-1 rounded"
+          required
+        />
       </div>
       <div>
         <label class="block font-medium">Status</label>
-        <select id="roomStatus" class="w-full border px-2 py-1 rounded">
+        <select
+          id="roomStatus"
+          class="w-full border px-2 py-1 rounded"
+        >
           <option value="available">Available</option>
           <option value="booked">Booked</option>
         </select>
       </div>
-      <div class="flex justify-end space-x-2">
-        <button type="button" id="closeModal" class="px-4 py-2 rounded border">Cancel</button>
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">Save</button>
+      <div class="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
+        <button
+          type="button"
+          id="closeModal"
+          class="px-4 py-2 rounded border w-full sm:w-auto"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded w-full sm:w-auto"
+        >
+          Save
+        </button>
       </div>
     </form>
   </div>
@@ -83,7 +120,6 @@
     let isEditing = false;
     let editingId = null;
 
-    // Load rooms and render rows with drag handles + visibility toggle
     async function loadRooms() {
       try {
         const res  = await fetch(`/api/rooms?hotel=${hotelId}`, { credentials: 'include' });
@@ -91,19 +127,12 @@
 
         roomsTable.innerHTML = data.map(r => `
           <tr data-id="${r.id}" class="cursor-move">
-            <td class="border px-4 py-2">
-              <span class="drag-handle mr-2">☰</span>${r.number}
-            </td>
+            <td class="border px-4 py-2"><span class="drag-handle mr-2">☰</span>${r.number}</td>
             <td class="border px-4 py-2">${r.type}</td>
             <td class="border px-4 py-2">${r.price}</td>
             <td class="border px-4 py-2 capitalize">${r.status}</td>
             <td class="border px-4 py-2 text-center">
-              <input
-                type="checkbox"
-                class="toggleVisible"
-                data-id="${r.id}"
-                ${r.visible ? 'checked' : ''}
-              >
+              <input type="checkbox" class="toggleVisible" data-id="${r.id}" ${r.visible ? 'checked' : ''}>
             </td>
             <td class="border px-4 py-2 space-x-2">
               <button data-id="${r.id}" class="editBtn text-blue-600">Edit</button>
@@ -112,15 +141,8 @@
           </tr>
         `).join('');
 
-        // Attach edit/delete listeners
-        document.querySelectorAll('.editBtn').forEach(btn =>
-          btn.addEventListener('click', onEdit)
-        );
-        document.querySelectorAll('.deleteBtn').forEach(btn =>
-          btn.addEventListener('click', onDelete)
-        );
-
-        // Attach visibility-toggle listeners
+        document.querySelectorAll('.editBtn').forEach(btn => btn.addEventListener('click', onEdit));
+        document.querySelectorAll('.deleteBtn').forEach(btn => btn.addEventListener('click', onDelete));
         document.querySelectorAll('.toggleVisible').forEach(cb =>
           cb.addEventListener('change', async (e) => {
             const id = e.target.dataset.id;
@@ -139,14 +161,11 @@
         );
       } catch (err) {
         roomsTable.innerHTML = `
-          <tr><td colspan="6" class="text-red-600 p-4">
-            Failed to load rooms: ${err.message}
-          </td></tr>
+          <tr><td colspan="6" class="text-red-600 p-4">Failed to load rooms: ${err.message}</td></tr>
         `;
       }
     }
 
-    // Edit handler
     async function onEdit(e) {
       const id = e.target.dataset.id;
       try {
@@ -166,7 +185,6 @@
       }
     }
 
-    // Delete handler
     async function onDelete(e) {
       if (!confirm('Delete this room?')) return;
       try {
@@ -180,7 +198,6 @@
       }
     }
 
-    // New Room button
     newRoomBtn.addEventListener('click', () => {
       isEditing = false;
       editingId = null;
@@ -190,12 +207,10 @@
       roomModal.classList.remove('hidden');
     });
 
-    // Close modal
     closeModal.addEventListener('click', () => {
       roomModal.classList.add('hidden');
     });
 
-    // Form submit for create/update
     roomForm.addEventListener('submit', async e => {
       e.preventDefault();
       formError.classList.add('hidden');
@@ -224,9 +239,8 @@
       }
     });
 
-    // Initialize Sortable for drag-and-drop reordering
     new Sortable(roomsTable, {
-      handle:    '.drag-handle',
+      handle: '.drag-handle',
       animation: 150,
       onEnd: async () => {
         const order = Array.from(roomsTable.children).map(tr => tr.dataset.id);
@@ -244,7 +258,6 @@
       }
     });
 
-    // Initial load
     loadRooms();
   });
 </script>

@@ -1,56 +1,87 @@
 <% title = 'Manage Guests' %>
 
-<a href="/admin/hotels" class="text-sm text-gray-600 hover:underline mb-4 inline-block">
-  ← Back to Hotels
-</a>
+<div class="container mx-auto p-4">
+  <a
+    href="/admin/hotels"
+    class="text-sm text-gray-600 hover:underline mb-4 inline-block w-full sm:w-auto"
+  >
+    ← Back to Hotels
+  </a>
 
-<h1 class="text-2xl font-bold mb-4">Guests for Hotel #<%= hotelId %></h1>
+  <h1 class="text-2xl font-bold mb-4">Guests for Hotel #<%= hotelId %></h1>
 
-<button
-  id="newGuestBtn"
-  class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mb-4"
->
-  + New Guest
-</button>
+  <button
+    id="newGuestBtn"
+    class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded mb-4 w-full sm:w-auto"
+  >
+    + New Guest
+  </button>
 
-<table class="min-w-full bg-white rounded shadow overflow-hidden">
-  <thead class="bg-gray-100">
-    <tr>
-      <th class="px-4 py-2">Name</th>
-      <th class="px-4 py-2">Email</th>
-      <th class="px-4 py-2">Phone</th>
-      <th class="px-4 py-2">Actions</th>
-    </tr>
-  </thead>
-  <tbody id="guestsTable"></tbody>
-</table>
+  <div class="overflow-x-auto">
+    <table class="min-w-full bg-white rounded shadow overflow-hidden">
+      <thead class="bg-gray-100">
+        <tr>
+          <th class="px-4 py-2">Name</th>
+          <th class="px-4 py-2">Email</th>
+          <th class="px-4 py-2">Phone</th>
+          <th class="px-4 py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="guestsTable"></tbody>
+    </table>
+  </div>
 
-<!-- Guest Modal -->
-<div
-  id="guestModal"
-  class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50"
->
-  <div class="bg-white p-6 rounded shadow w-96">
-    <h2 class="text-xl font-semibold mb-4" id="guestModalTitle">New Guest</h2>
-    <div id="guestFormError" class="text-red-600 mb-2 hidden"></div>
-    <form id="guestForm" class="space-y-4">
-      <div>
-        <label class="block font-medium">Name</label>
-        <input type="text" id="guestName" class="w-full border px-2 py-1 rounded" required />
-      </div>
-      <div>
-        <label class="block font-medium">Email</label>
-        <input type="email" id="guestEmail" class="w-full border px-2 py-1 rounded" />
-      </div>
-      <div>
-        <label class="block font-medium">Phone</label>
-        <input type="text" id="guestPhone" class="w-full border px-2 py-1 rounded" />
-      </div>
-      <div class="flex justify-end space-x-2">
-        <button type="button" id="closeGuestModal" class="px-4 py-2 rounded border">Cancel</button>
-        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded">Save</button>
-      </div>
-    </form>
+  <!-- Guest Modal -->
+  <div
+    id="guestModal"
+    class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50"
+  >
+    <div class="bg-white p-6 rounded shadow w-full max-w-sm mx-4">
+      <h2 class="text-xl font-semibold mb-4" id="guestModalTitle">New Guest</h2>
+      <div id="guestFormError" class="text-red-600 mb-2 hidden"></div>
+      <form id="guestForm" class="space-y-4">
+        <div>
+          <label class="block font-medium">Name</label>
+          <input
+            type="text"
+            id="guestName"
+            class="w-full border px-2 py-1 rounded"
+            required
+          />
+        </div>
+        <div>
+          <label class="block font-medium">Email</label>
+          <input
+            type="email"
+            id="guestEmail"
+            class="w-full border px-2 py-1 rounded"
+          />
+        </div>
+        <div>
+          <label class="block font-medium">Phone</label>
+          <input
+            type="text"
+            id="guestPhone"
+            class="w-full border px-2 py-1 rounded"
+          />
+        </div>
+        <div class="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
+          <button
+            type="button"
+            id="closeGuestModal"
+            class="px-4 py-2 rounded border w-full sm:w-auto"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded w-full sm:w-auto"
+          >
+            Save
+          </button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>
 
@@ -72,7 +103,6 @@
     let editingId = null;
 
     async function loadGuests() {
-      // Pass ?hotel= so back-end returns only that hotel’s guests
       const res    = await fetch(`/api/guests?hotel=${hotelId}`);
       const guests = await res.json();
       guestsTable.innerHTML = guests.map(g => `

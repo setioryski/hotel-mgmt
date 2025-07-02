@@ -1,25 +1,22 @@
 <% title = 'Admin Dashboard' %>
 
-<div class="flex justify-end mb-4">
+<div class="flex justify-end mb-4 p-4">
   <button
     id="logoutBtn"
-    class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition"
+    class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 transition w-full sm:w-auto"
   >
     Logout
   </button>
 </div>
 
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 p-4">
   <a href="/admin/hotels" class="bg-white p-6 rounded shadow hover:shadow-md">
     <h2 class="text-lg font-semibold">Hotels</h2>
     <p class="text-blue-600 mt-2">Manage Hotels →</p>
   </a>
-
-
 </div>
 
 <script>
-  // Call your logout endpoint (which clears the token cookie) then redirect to login
   document.getElementById('logoutBtn').addEventListener('click', async () => {
     try {
       await fetch('/api/auth/logout', {
