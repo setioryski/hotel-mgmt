@@ -39,11 +39,12 @@ const GroupBookingModal = ({
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-  // Selected rooms and per-room entries
+  // State for selected rooms and entries
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
   const [entries, setEntries] = useState([]);
   const [totalPrice, setTotalPrice] = useState(0);
 
+  // Build entries whenever selectedRoomIds changes
   useEffect(() => {
     const newEntries = selectedRoomIds.map(id => {
       const room = resources.find(r => r.id === id) || {};
@@ -59,11 +60,19 @@ const GroupBookingModal = ({
     setEntries(newEntries);
   }, [selectedRoomIds, resources, todayStr, tomorrowStr]);
 
-  // Recalc total
+  // Recalculate total price whenever entries change
   useEffect(() => {
     const sum = entries.reduce((acc, e) => acc + (parseFloat(e.price) || 0), 0);
     setTotalPrice(sum);
   }, [entries]);
+
+  // Group rooms by type
+  const groupedResources = resources.reduce((acc, room) => {
+    const { type } = room;
+    if (!acc[type]) acc[type] = [];
+    acc[type].push(room);
+    return acc;
+  }, {});
 
   const toggleRoom = id => {
     setSelectedRoomIds(prev =>
@@ -89,7 +98,7 @@ const GroupBookingModal = ({
         return alert(`Fill dates for ${entry.label}.`);
       }
       if (new Date(entry.startDate) >= new Date(entry.endDate)) {
-        return alert(`Check-out after check-in for ${entry.label}.`);
+        return alert(`Check-out must be after check-in for ${entry.label}.`);
       }
     }
 
@@ -157,19 +166,26 @@ const GroupBookingModal = ({
             )}
           </div>
 
-          {/* Select Rooms */}
+          {/* Select Rooms - grouped by type */}
           <div className="mb-4">
             <p className="font-medium mb-2">Select Rooms</p>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-auto border rounded p-2">
-              {resources.map(r => (
-                <label key={r.id} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedRoomIds.includes(r.id)}
-                    onChange={() => toggleRoom(r.id)}
-                  />
-                  <span>Room {r.number} ({r.type})</span>
-                </label>
+            <div className="max-h-40 overflow-auto border rounded p-2">
+              {Object.entries(groupedResources).map(([type, rooms]) => (
+                <div key={type} className="mb-3">
+                  <h4 className="font-medium mb-1">{type}</h4>
+                  <div className="grid grid-cols-2 gap-2">
+                    {rooms.map(r => (
+                      <label key={r.id} className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          checked={selectedRoomIds.includes(r.id)}
+                          onChange={() => toggleRoom(r.id)}
+                        />
+                        <span>Room {r.number}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
           </div>
@@ -222,7 +238,9 @@ const GroupBookingModal = ({
 
           {/* Total Price */}
           <div className="mb-6 text-right">
-            <span className="font-semibold text-lg">Total: Rp {totalPrice.toLocaleString('id-ID', { minimumFractionDigits: 2 })}</span>
+            <span className="font-semibold text-lg">
+              Total: Rp {totalPrice.toLocaleString('id-ID', { minimumFractionDigits: 2 })}
+            </span>
           </div>
 
           {/* Actions */}
