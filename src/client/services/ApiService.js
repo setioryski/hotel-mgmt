@@ -43,8 +43,21 @@ export class ApiService {
 
   // --- Guest Endpoints ---
   getGuests = () => this._fetchJSON('/guests');
-  createGuest = (data) => this._fetchJSON('/guests', { method: 'POST', body: JSON.stringify(data) });
-  updateGuest = (id, data) => this._fetchJSON(`/guests/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+    /** Fetch a single guest by ID */
+  getGuest  = (id) => this._fetchJSON(`/guests/${id}`);
+createGuest = (data) =>
+  this._fetchJSON('/guests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+
+updateGuest = (id, data) =>
+  this._fetchJSON(`/guests/${id}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  }); 
 
   // --- Booking Endpoints ---
   getBookings = (hotelId) => this._fetchJSON(`/bookings?hotel=${hotelId}`);

@@ -43,6 +43,12 @@ const GroupBookingModal = ({
   const [selectedRoomIds, setSelectedRoomIds] = useState([]);
   const [entries, setEntries] = useState([]);
   const [totalPrice, setTotalPrice] = useState(0);
+  const [newGuestMode, setNewGuestMode] = useState(false);
+const [newGuestName, setNewGuestName] = useState('');
+const [newGuestEmail, setNewGuestEmail] = useState('');
+const [newGuestPhone, setNewGuestPhone] = useState('');
+const [newGuestError, setNewGuestError] = useState('');
+
 
   // Build entries whenever selectedRoomIds changes
   useEffect(() => {
@@ -61,10 +67,17 @@ const GroupBookingModal = ({
   }, [selectedRoomIds, resources, todayStr, tomorrowStr]);
 
   // Recalculate total price whenever entries change
-  useEffect(() => {
-    const sum = entries.reduce((acc, e) => acc + (parseFloat(e.price) || 0), 0);
-    setTotalPrice(sum);
-  }, [entries]);
+useEffect(() => {
+  const sum = entries.reduce((acc, e) => {
+    const start = new Date(e.startDate);
+    const end = new Date(e.endDate);
+    const nights = Math.max((end - start) / (1000 * 60 * 60 * 24), 0);
+    const pricePerNight = parseFloat(e.price) || 0;
+    return acc + pricePerNight * nights;
+  }, 0);
+  setTotalPrice(sum);
+}, [entries]);
+
 
   // Group rooms by type
   const groupedResources = resources.reduce((acc, room) => {
@@ -117,15 +130,15 @@ const GroupBookingModal = ({
   if (!visible) return null;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-3xl max-h-[80vh] overflow-y-auto">
-        <h2 className="text-2xl font-semibold mb-4">Group Booking</h2>
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 p-4 sm:p-0">
+      <div className="bg-white p-4 sm:p-6 rounded-lg shadow-lg w-full max-h-full sm:max-h-[80vh] sm:max-w-3xl overflow-y-auto">
+        <h2 className="text-xl sm:text-2xl font-semibold mb-4">Group Booking</h2>
 
         {formError && <p className="text-red-500 mb-4">{formError}</p>}
 
-        <form onSubmit={handleFormSubmit}>
+        <form onSubmit={handleFormSubmit} className="space-y-4">
           {/* Guest */}
-          <div className="mb-4 relative">
+          <div className="relative">
             <label className="block font-medium mb-1">Guest</label>
             <input
               type="text"
@@ -153,35 +166,116 @@ const GroupBookingModal = ({
                     {g.name}
                   </li>
                 ))}
-                <li
-                  onClick={() => {
-                    onCreateGuest();
-                    setShowGuestSuggestions(false);
-                  }}
-                  className="p-2 hover:bg-gray-100 cursor-pointer text-blue-600"
-                >
-                  + Add new guest
-                </li>
+<li
+  onClick={() => {
+    setNewGuestMode(true);
+    setShowGuestSuggestions(false);
+  }}
+  className="p-2 hover:bg-gray-100 cursor-pointer text-blue-600"
+>
+  + Add new guest
+</li>
+
               </ul>
             )}
           </div>
 
+          {newGuestMode && (
+  <div className="bg-gray-50 border rounded p-3 space-y-2 mt-2">
+    <div>
+      <label className="block text-sm font-medium">Name</label>
+      <input
+        type="text"
+        value={newGuestName}
+        onChange={(e) => setNewGuestName(e.target.value)}
+        className="w-full border rounded p-2"
+        placeholder="Full name"
+      />
+    </div>
+    <div>
+      <label className="block text-sm font-medium">Email</label>
+      <input
+        type="email"
+        value={newGuestEmail}
+        onChange={(e) => setNewGuestEmail(e.target.value)}
+        className="w-full border rounded p-2"
+        placeholder="Email (optional)"
+      />
+    </div>
+    <div>
+      <label className="block text-sm font-medium">Phone</label>
+      <input
+        type="tel"
+        value={newGuestPhone}
+        onChange={(e) => setNewGuestPhone(e.target.value)}
+        className="w-full border rounded p-2"
+        placeholder="Phone (optional)"
+      />
+    </div>
+    {newGuestError && <p className="text-red-500 text-sm">{newGuestError}</p>}
+    <div className="flex justify-between mt-2">
+      <button
+        type="button"
+        onClick={() => setNewGuestMode(false)}
+        className="text-gray-600"
+      >
+        Cancel
+      </button>
+      <button
+        type="button"
+        onClick={async () => {
+          if (!newGuestName.trim()) {
+            setNewGuestError('Name is required');
+            return;
+          }
+          setNewGuestError('');
+          try {
+            const res = await fetch('/api/guests', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                name: newGuestName,
+                email: newGuestEmail,
+                phone: newGuestPhone,
+              }),
+            });
+            const guest = await res.json();
+            if (!guest.id) throw new Error('Failed to create guest');
+            setSelectedGuest(guest.id);
+            setGuestSearch(guest.name);
+            setNewGuestMode(false);
+            toast.success('Guest created');
+          } catch (err) {
+            console.error(err);
+            setNewGuestError(err.message || 'Failed to create guest');
+          }
+        }}
+        className="bg-blue-600 text-white px-4 py-1 rounded"
+      >
+        Save Guest
+      </button>
+    </div>
+  </div>
+)}
+
+
           {/* Select Rooms - grouped by type */}
-          <div className="mb-4">
+          <div>
             <p className="font-medium mb-2">Select Rooms</p>
             <div className="max-h-40 overflow-auto border rounded p-2">
               {Object.entries(groupedResources).map(([type, rooms]) => (
                 <div key={type} className="mb-3">
                   <h4 className="font-medium mb-1">{type}</h4>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {rooms.map(r => (
                       <label key={r.id} className="flex items-center space-x-2">
                         <input
                           type="checkbox"
                           checked={selectedRoomIds.includes(r.id)}
                           onChange={() => toggleRoom(r.id)}
+                          className="h-5 w-5"
                         />
-                        <span>Room {r.number}</span>
+                        <span className="text-sm">Room {r.number}</span>
                       </label>
                     ))}
                   </div>
@@ -192,9 +286,9 @@ const GroupBookingModal = ({
 
           {/* Per-room details */}
           {entries.map((e, i) => (
-            <div key={e.roomId} className="mb-4 border-b pb-4">
+            <div key={e.roomId} className="border-b pb-4">
               <h3 className="font-medium mb-2">{e.label}</h3>
-              <div className="grid grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm mb-1">Check-in</label>
                   <input
@@ -237,22 +331,25 @@ const GroupBookingModal = ({
           ))}
 
           {/* Total Price */}
-          <div className="mb-6 text-right">
+          <div className="text-right">
             <span className="font-semibold text-lg">
               Total: Rp {totalPrice.toLocaleString('id-ID', { minimumFractionDigits: 2 })}
             </span>
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end space-x-2">
+          <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2">
             <button
               type="button"
               onClick={closeModal}
-              className="px-4 py-2 border rounded"
+              className="w-full sm:w-auto px-4 py-2 border rounded"
             >
               Cancel
             </button>
-            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">
+            <button
+              type="submit"
+              className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white rounded"
+            >
               Book Group
             </button>
           </div>

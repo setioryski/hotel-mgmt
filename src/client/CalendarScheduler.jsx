@@ -562,7 +562,13 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
       const guestEmail = guest?.email || 'N/A';
       const guestPhone = guest?.phone || 'N/A';
       const bookingCount = events.filter(e => e.type === 'booking' && e.guestId === event.guestId).length;
-      const formattedTotalPrice = event.totalPrice ? Math.round(parseFloat(event.totalPrice)).toLocaleString('id-ID') : 'N/A';
+      let formattedTotalPrice = 'N/A';
+if (event.price && event.start && event.end) {
+  const nights = moment(event.end).diff(moment(event.start), 'days');
+  const total = parseFloat(event.price) * nights;
+  formattedTotalPrice = Math.round(total).toLocaleString('id-ID');
+}
+
 
       tooltipText = [
         `Guest: ${event.title}`,
@@ -620,24 +626,38 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
     });
   };
 
-  const onEventDoubleClick = (sd, event) => {
-    if (event.type === 'booking') {
-      setSelectedRoom(event.resourceId);
-      setBookingStart(moment(event.start).format('YYYY-MM-DD'));
-      setBookingEnd(moment(event.end).format('YYYY-MM-DD'));
-      setBookingPrice(event.price ?? '');
-      setBookingStatus(event.status);
-      setBookingFormError('');
-      setSelectedGuest(event.guestId || '');
-      setGuestSearch(event.title || '');
-      setShowGuestSuggestions(false);
-      setIsEditingBooking(true);
-      setEditingBookingId(event.id);
-      setNewGuestMode(false);
-      setEditingGuestMode(false);
-      setBookingNotes(event.notes || '');
-      setBookingModalVisible(true);
-    } else { // This is a block event
+
+const onEventDoubleClick = (sd, event) => {
+  if (event.type === 'booking') {
+    // find the full guest record
+    const guest = guests.find(g => g.id === event.guestId) || {};
+
+    setSelectedRoom(event.resourceId);
+    setBookingStart(moment(event.start).format('YYYY-MM-DD'));
+    setBookingEnd(moment(event.end).format('YYYY-MM-DD'));
+    setBookingPrice(event.price ?? '');
+    setBookingStatus(event.status);
+    setBookingFormError('');
+
+    // prefills for booking modal guest fields
+    setSelectedGuest(event.guestId || '');
+    setGuestSearch(guest.name || event.title || '');
+    setShowGuestSuggestions(false);
+
+    // prefill inline-edit fields in BookingModal
+    setEditingGuestName(guest.name || '');
+    setEditingGuestEmail(guest.email || '');
+    setEditingGuestPhone(guest.phone || '');
+
+    // leave guest-edit mode off until user clicks “Edit Guest”
+    setNewGuestMode(false);
+    setEditingGuestMode(false);
+
+    setIsEditingBooking(true);
+    setEditingBookingId(event.id);
+    setBookingNotes(event.notes || '');
+    setBookingModalVisible(true);
+  } else { // This is a block event
       setBlockRoom(event.resourceId);
       setBlockStart(moment(event.start).format('YYYY-MM-DD'));
       setBlockEnd(moment(event.end).format('YYYY-MM-DD'));
@@ -682,14 +702,19 @@ const eventItemTemplateResolver = (sd, event, start, end, status, style) => {
     g.name.toLowerCase().includes(guestSearch.toLowerCase())
   );
 
-  const handleStartEditGuest = () => {
-    const guestToEdit = guests.find(g => g.id === selectedGuest);
-    if (guestToEdit) {
-      setEditingGuestName(guestToEdit.name);
-      setEditingGuestEmail(guestToEdit.email || '');
-      setEditingGuestPhone(guestToEdit.phone || '');
+  const handleStartEditGuest = async () => {
+    if (!selectedGuest) return;
+    try {
+      // Fetch the latest guest info from the API
+      const guest = await apiService.getGuest(selectedGuest);
+      setEditingGuestName(guest.name);
+      setEditingGuestEmail(guest.email  || '');
+      setEditingGuestPhone(guest.phone  || '');
       setEditingGuestMode(true);
       setShowGuestSuggestions(false);
+    } catch (err) {
+      console.error('Failed to load guest details', err);
+      toast.error('Could not load guest details');
     }
   };
 

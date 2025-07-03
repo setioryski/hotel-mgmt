@@ -236,7 +236,20 @@ export const updateBooking = async (req, res, next) => {
 
     const originalHotelId = booking.Room.Hotel.id;
 
-    await booking.update(req.body);
+    // map `room` → `RoomId`, `guest` → `GuestId`
+    const {
+      room: roomId,
+      guest: guestId,
+      ...otherFields
+    } = req.body;
+    const updatePayload = {
+      ...otherFields,
+      // only override if they actually passed it
+      ...(typeof roomId !== 'undefined' ? { RoomId: roomId } : {}),
+      ...(typeof guestId !== 'undefined' ? { GuestId: guestId } : {}),
+    };
+
+    await booking.update(updatePayload);
 
     const updatedBooking = await Booking.findByPk(bookingId, { include: [{ model: Room, include: [Hotel] }, Guest] });
     const newHotelId = updatedBooking.Room.Hotel.id;

@@ -1,22 +1,18 @@
-import express from 'express';
-import { protect, authorize } from '../middlewares/auth.js';
+// src/routes/guestRoutes.js
+import { Router } from 'express';
 import * as ctrl from '../controllers/guestController.js';
-import { body, param } from 'express-validator';
 
-const router = express.Router();
-router.use(protect);
+const router = Router();
 
+// Create new guest, or fetch all guests
 router.route('/')
-  .get(authorize('admin'), ctrl.getGuests)
-  .post(
-    authorize('admin'),
-    [ body('email').isEmail() ],
-    ctrl.createGuest
-  );
+  .post(ctrl.createGuest)
+  .get(ctrl.getGuests);
 
+// Operations on a single guest by ID
 router.route('/:id')
   .get(ctrl.getGuest)
-  .put([ param('id').isString() ], ctrl.updateGuest)
-  .delete([ param('id').isString() ], ctrl.deleteGuest);
+  .put(ctrl.updateGuest)
+  .delete(ctrl.deleteGuest);
 
 export default router;
