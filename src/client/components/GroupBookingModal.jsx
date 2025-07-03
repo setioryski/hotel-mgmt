@@ -5,155 +5,214 @@ import React, { useState, useEffect } from 'react';
  * Props:
  * - visible: boolean
  * - resources: Array of room objects { id, number, type, price }
- * - guests:    Array of guest objects { id, name }
- * - formError: string (optional)
- * - onSubmit:  function(payload:Array) where each payload entry is
- *      { room: string, guest: string, startDate: string, endDate: string, price: number }
- * - onCancel:  function()
+ * - guestSearch: string
+ * - setGuestSearch: (str) => void
+ * - showGuestSuggestions: boolean
+ * - setShowGuestSuggestions: (bool) => void
+ * - filteredGuests: Array of guest objects { id, name }
+ * - selectedGuest: string (guest ID)
+ * - setSelectedGuest: (id) => void
+ * - onCreateGuest: () => void
+ * - formError: string
+ * - handleSubmit: function(payloadArray)
+ * - closeModal: () => void
  */
 const GroupBookingModal = ({
   visible,
   resources,
-  guests,
+  guestSearch,
+  setGuestSearch,
+  showGuestSuggestions,
+  setShowGuestSuggestions,
+  filteredGuests,
+  selectedGuest,
+  setSelectedGuest,
+  onCreateGuest,
   formError,
-  onSubmit,
-  onCancel,
+  handleSubmit,
+  closeModal,
 }) => {
-  // compute today & tomorrow in YYYY-MM-DD
-  const today = new Date().toISOString().slice(0, 10);
-  const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
-    .toISOString()
-    .slice(0, 10);
+  // Default dates
+  const today = new Date();
+  const todayStr = today.toISOString().split('T')[0];
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
 
-  // state for each room’s entry
+  // Selected rooms and per-room entries
+  const [selectedRoomIds, setSelectedRoomIds] = useState([]);
   const [entries, setEntries] = useState([]);
+  const [totalPrice, setTotalPrice] = useState(0);
 
-  // initialize entries when modal opens
   useEffect(() => {
-    if (!visible) return;
-    const initial = resources.map((r) => ({
-      roomId:    r.id,
-      label:     `Room ${r.number} (${r.type})`,
-      startDate: today,
-      endDate:   tomorrow,
-      price:     r.price,
-      guestId:   '',
-    }));
-    setEntries(initial);
-  }, [visible, resources, today, tomorrow]);
+    const newEntries = selectedRoomIds.map(id => {
+      const room = resources.find(r => r.id === id) || {};
+      return {
+        roomId: id,
+        label: `Room ${room.number || id} (${room.type || '—'})`,
+        startDate: todayStr,
+        endDate: tomorrowStr,
+        price: room.price != null ? room.price : 0,
+        notes: '',
+      };
+    });
+    setEntries(newEntries);
+  }, [selectedRoomIds, resources, todayStr, tomorrowStr]);
 
-  // calculate total price
-  const totalPrice = entries.reduce(
-    (sum, e) => sum + (parseFloat(e.price) || 0),
-    0
-  );
+  // Recalc total
+  useEffect(() => {
+    const sum = entries.reduce((acc, e) => acc + (parseFloat(e.price) || 0), 0);
+    setTotalPrice(sum);
+  }, [entries]);
 
-  // update one field of an entry
-  const handleEntryChange = (idx, field, value) => {
-    setEntries((prev) => {
+  const toggleRoom = id => {
+    setSelectedRoomIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleEntryChange = (index, field, value) => {
+    setEntries(prev => {
       const next = [...prev];
-      next[idx] = { ...next[idx], [field]: value };
+      next[index] = { ...next[index], [field]: value };
       return next;
     });
   };
 
-  // form submission
-  const handleSubmit = (e) => {
+  const handleFormSubmit = e => {
     e.preventDefault();
+    if (!selectedGuest) return alert('Please select or add a guest.');
+    if (entries.length === 0) return alert('Please select at least one room.');
 
-    // validation
-    for (const e of entries) {
-      if (!e.guestId) {
-        return alert(`Please select a guest for ${e.label}.`);
+    for (const entry of entries) {
+      if (!entry.startDate || !entry.endDate) {
+        return alert(`Fill dates for ${entry.label}.`);
       }
-      if (!e.startDate || !e.endDate) {
-        return alert(`Dates missing for ${e.label}.`);
-      }
-      if (new Date(e.startDate) >= new Date(e.endDate)) {
-        return alert(`Check-out must be after check-in for ${e.label}.`);
+      if (new Date(entry.startDate) >= new Date(entry.endDate)) {
+        return alert(`Check-out after check-in for ${entry.label}.`);
       }
     }
 
-    // build payload
-    const payload = entries.map((e) => ({
-      room:      e.roomId,
-      guest:     e.guestId,
+    const payload = entries.map(e => ({
+      room: e.roomId,
+      guest: selectedGuest,
       startDate: `${e.startDate}T12:00:00`,
-      endDate:   `${e.endDate}T11:59:00`,
-      price:     parseFloat(e.price),
+      endDate: `${e.endDate}T11:59:00`,
+      price: parseFloat(e.price),
+      notes: e.notes,
     }));
 
-    onSubmit(payload);
+    handleSubmit(payload);
   };
 
   if (!visible) return null;
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-3xl">
+      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-3xl max-h-[80vh] overflow-y-auto">
         <h2 className="text-2xl font-semibold mb-4">Group Booking</h2>
+
         {formError && <p className="text-red-500 mb-4">{formError}</p>}
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleFormSubmit}>
+          {/* Guest */}
+          <div className="mb-4 relative">
+            <label className="block font-medium mb-1">Guest</label>
+            <input
+              type="text"
+              value={guestSearch}
+              onChange={e => {
+                setGuestSearch(e.target.value);
+                setShowGuestSuggestions(true);
+                setSelectedGuest('');
+              }}
+              placeholder="Search or add guest"
+              className="w-full border rounded p-2"
+            />
+            {showGuestSuggestions && (
+              <ul className="absolute left-0 right-0 bg-white border rounded mt-1 max-h-40 overflow-auto z-10">
+                {filteredGuests.map(g => (
+                  <li
+                    key={g.id}
+                    onClick={() => {
+                      setSelectedGuest(g.id);
+                      setGuestSearch(g.name);
+                      setShowGuestSuggestions(false);
+                    }}
+                    className="p-2 hover:bg-gray-100 cursor-pointer"
+                  >
+                    {g.name}
+                  </li>
+                ))}
+                <li
+                  onClick={() => {
+                    onCreateGuest();
+                    setShowGuestSuggestions(false);
+                  }}
+                  className="p-2 hover:bg-gray-100 cursor-pointer text-blue-600"
+                >
+                  + Add new guest
+                </li>
+              </ul>
+            )}
+          </div>
+
+          {/* Select Rooms */}
+          <div className="mb-4">
+            <p className="font-medium mb-2">Select Rooms</p>
+            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-auto border rounded p-2">
+              {resources.map(r => (
+                <label key={r.id} className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={selectedRoomIds.includes(r.id)}
+                    onChange={() => toggleRoom(r.id)}
+                  />
+                  <span>Room {r.number} ({r.type})</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Per-room details */}
           {entries.map((e, i) => (
-            <div key={e.roomId} className="mb-6 border-b pb-4">
+            <div key={e.roomId} className="mb-4 border-b pb-4">
               <h3 className="font-medium mb-2">{e.label}</h3>
               <div className="grid grid-cols-4 gap-4">
-                {/* Guest */}
-                <div>
-                  <label className="block text-sm mb-1">Guest</label>
-                  <select
-                    value={e.guestId}
-                    onChange={(ev) =>
-                      handleEntryChange(i, 'guestId', ev.target.value)
-                    }
-                    className="w-full border rounded p-2"
-                  >
-                    <option value="">Select guest…</option>
-                    {guests.map((g) => (
-                      <option key={g.id} value={g.id}>
-                        {g.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Check-in */}
                 <div>
                   <label className="block text-sm mb-1">Check-in</label>
                   <input
                     type="date"
                     value={e.startDate}
-                    onChange={(ev) =>
-                      handleEntryChange(i, 'startDate', ev.target.value)
-                    }
+                    onChange={ev => handleEntryChange(i, 'startDate', ev.target.value)}
                     className="w-full border rounded p-2"
                   />
                 </div>
-
-                {/* Check-out */}
                 <div>
                   <label className="block text-sm mb-1">Check-out</label>
                   <input
                     type="date"
                     value={e.endDate}
-                    onChange={(ev) =>
-                      handleEntryChange(i, 'endDate', ev.target.value)
-                    }
+                    onChange={ev => handleEntryChange(i, 'endDate', ev.target.value)}
                     className="w-full border rounded p-2"
                   />
                 </div>
-
-                {/* Price */}
                 <div>
                   <label className="block text-sm mb-1">Price</label>
                   <input
                     type="number"
-                    step="0.01"
                     value={e.price}
-                    onChange={(ev) =>
-                      handleEntryChange(i, 'price', ev.target.value)
-                    }
+                    step="0.01"
+                    onChange={ev => handleEntryChange(i, 'price', ev.target.value)}
+                    className="w-full border rounded p-2"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={e.notes}
+                    onChange={ev => handleEntryChange(i, 'notes', ev.target.value)}
                     className="w-full border rounded p-2"
                   />
                 </div>
@@ -161,28 +220,21 @@ const GroupBookingModal = ({
             </div>
           ))}
 
-          {/* Total */}
+          {/* Total Price */}
           <div className="mb-6 text-right">
-            <span className="font-semibold text-lg">
-              Total: Rp {totalPrice.toLocaleString('id-ID', {
-                minimumFractionDigits: 2,
-              })}
-            </span>
+            <span className="font-semibold text-lg">Total: Rp {totalPrice.toLocaleString('id-ID', { minimumFractionDigits: 2 })}</span>
           </div>
 
           {/* Actions */}
           <div className="flex justify-end space-x-2">
             <button
               type="button"
-              onClick={onCancel}
+              onClick={closeModal}
               className="px-4 py-2 border rounded"
             >
               Cancel
             </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-blue-600 text-white rounded"
-            >
+            <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">
               Book Group
             </button>
           </div>

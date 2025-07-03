@@ -409,40 +409,20 @@ function CalendarScheduler({ initialHotelId }) {
     }
   };
 
-  const handleGroupBookingSubmit = async (e) => {
-   e.preventDefault();
-   setBookingFormError('');
-   if (selectedRooms.length === 0) {
-     return setBookingFormError('Please select at least one room.');
-   }
-   if (!selectedGuest) {
-     return setBookingFormError('Please select or create a guest.');
-   }
-   const startISO = `${bookingStart}T12:00:00`;
-   const endISO   = `${bookingEnd}T11:59:00`;
-   if (new Date(startISO) >= new Date(endISO)) {
-     return setBookingFormError('Check-out must be after check-in.');
-  }
-
-   const payload = selectedRooms.map(rid => ({
-     room:       rid,
-     guest:      selectedGuest,
-     startDate:  startISO,
-     endDate:    endISO,
-     status:     bookingStatus,
-     price:      bookingPrice,
-     totalPrice: bookingTotal,
-     notes:      bookingNotes,
-   }));
-
-   try {
-     await apiService.createGroupBooking(payload);
-     toast.success('Group booking created!');
-     setGroupModalVisible(false);
-   } catch (err) {
-     setBookingFormError(err.message);
-   }
- };
+  // Now receives the payload array directly (no event)
+  const handleGroupBookingSubmit = async (payload) => {
+    setBookingFormError('');
+    if (!Array.isArray(payload) || payload.length === 0) {
+      return setBookingFormError('Please select at least one room.');
+    }
+    try {
+      await apiService.createGroupBooking(payload);
+      toast.success('Group booking created!');
+      setGroupModalVisible(false);
+    } catch (err) {
+      setBookingFormError(err.message);
+    }
+  };
 
   const handleCancelBooking = async () => {
     if (!editingBookingId) return;

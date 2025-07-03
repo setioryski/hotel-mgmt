@@ -37,6 +37,7 @@ export class SchedulerService {
       number: r.number,
       type: r.type,
       name: resourceNameRenderer(r),
+      price: r.price, // <-- include this
     }));
 
     const bookingEvents = (bookings || []).map((e) => {
