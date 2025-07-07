@@ -367,43 +367,76 @@ function CalendarScheduler({ initialHotelId }) {
   // ────────────────────────────────────────────────────────────
   // Booking handlers (Delegated to ApiService)
   // ────────────────────────────────────────────────────────────
-  const handleBookingSubmit = async (e) => {
-    e.preventDefault();
+const handleBookingSubmit = async (eOrEntries) => {
+  // --- GROUP BOOKING MODE ---
+  if (Array.isArray(eOrEntries)) {
+    const entries = eOrEntries;
     setBookingFormError('');
-    if (!selectedRoom) return setBookingFormError('Please select a room.');
-    if (!selectedGuest) return setBookingFormError('Please select or create a guest.');
-    const startISO = `${bookingStart}T12:00:00`;
-    const endISO = `${bookingEnd}T11:59:00`;
-    if (new Date(startISO) >= new Date(endISO)) {
-      return setBookingFormError('Check-out must be after check-in.');
-    }
-    
-    const bookingData = {
-        room: selectedRoom,
-        guest: selectedGuest,
-        startDate: startISO,
-        endDate: endISO,
-        status: bookingStatus,
-        price: bookingPrice,
-        totalPrice: bookingTotal,
-        notes: bookingNotes,
-    };
-
     try {
-      if (isEditingBooking && editingBookingId) {
-        await apiService.updateBooking(editingBookingId, bookingData);
-        toast.success('Booking updated');
-      } else {
-        await apiService.createBooking(bookingData);
-        toast.success('Booking created');
-      }
+      // Create all bookings in parallel
+      await Promise.all(entries.map((en) => {
+        const startISO = `${en.bookingStart}T12:00:00`;
+        const endISO   = `${en.bookingEnd}T11:59:00`;
+        const nights   = (new Date(endISO) - new Date(startISO)) / (1000 * 60 * 60 * 24);
+        const bookingData = {
+          room:       en.selectedRoom,
+          guest:      en.selectedGuest,
+          startDate:  startISO,
+          endDate:    endISO,
+          price:      parseFloat(en.bookingPrice),
+          totalPrice: parseFloat(en.bookingPrice) * nights,
+          notes:      en.bookingNotes,
+          status:     en.status || 'booked',
+        };
+        return apiService.createBooking(bookingData);
+      }));
+      toast.success('Group booking created');
       closeBookingModal();
-      // REMOVED: loadData(); // Relies on socket event now
+      // Your socket.io listener should auto-refresh the calendar
     } catch (err) {
-      console.error('Booking failed:', err);
-      setBookingFormError(err.message);
+      console.error('Group booking failed:', err);
+      setBookingFormError(err.message || 'Failed to create all bookings');
     }
+    return;
+  }
+
+  // --- SINGLE BOOKING MODE (unchanged) ---
+  const e = eOrEntries;
+  e.preventDefault();
+  setBookingFormError('');
+  if (!selectedRoom)   return setBookingFormError('Please select a room.');
+  if (!selectedGuest)  return setBookingFormError('Please select or create a guest.');
+  const startISO = `${bookingStart}T12:00:00`;
+  const endISO   = `${bookingEnd}T11:59:00`;
+  if (new Date(startISO) >= new Date(endISO)) {
+    return setBookingFormError('Check-out must be after check-in.');
+  }
+
+  const bookingData = {
+    room:      selectedRoom,
+    guest:     selectedGuest,
+    startDate: startISO,
+    endDate:   endISO,
+    price:     bookingPrice,
+    totalPrice: bookingTotal,
+    notes:     bookingNotes,
+    status:    bookingStatus,
   };
+
+  try {
+    if (isEditingBooking && editingBookingId) {
+      await apiService.updateBooking(editingBookingId, bookingData);
+      toast.success('Booking updated');
+    } else {
+      await apiService.createBooking(bookingData);
+      toast.success('Booking created');
+    }
+    closeBookingModal();
+  } catch (err) {
+    console.error('Booking failed:', err);
+    setBookingFormError(err.message);
+  }
+};
 
   const handleCancelBooking = async () => {
     if (!editingBookingId) return;
