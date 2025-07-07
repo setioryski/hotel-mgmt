@@ -41,10 +41,21 @@ function CalendarScheduler({ initialHotelId }) {
   const apiService = useMemo(() => new ApiService(), []);
   const schedulerService = useMemo(() => new SchedulerService(), []);
 
+
+   // ↓ declare your “version” state first
+  const [schedulerVersion, setSchedulerVersion] = useState(0);
+
+  // ───────── enable drag & drop across rooms ─────────
+  useEffect(() => {
+    const sd = schedulerService.schedulerData;
+    sd.config.movable           = true;   // allow drag in time
+    sd.config.crossResourceMove = true;   // allow drag between rooms
+    setSchedulerVersion(v => v + 1);      // force Scheduler to pick up new config
+  }, [schedulerService.schedulerData]);
+
   const isMobile = window.innerWidth < 768;
   
-  // State to trigger re-renders when scheduler data changes
-  const [schedulerVersion, setSchedulerVersion] = useState(0);
+
 
   // State for scheduler data
   const [resources, setResources] = useState([]);
@@ -536,18 +547,33 @@ const handleBookingSubmit = async (eOrEntries) => {
   // ────────────────────────────────────────────────────────────
   // Scheduler Event Handlers (Drag, Resize, Double-click)
   // ────────────────────────────────────────────────────────────
-  const onEventMove = (ev, slotId, start, end) => {
-    const apiCall = ev.type === 'booking'
-      ? apiService.updateBooking(ev.id, { room: slotId, startDate: moment(start).format(), endDate: moment(end).format(), status: ev.status })
-      : apiService.updateBlock(ev.id, { room: slotId, startDate: moment(start).format(), endDate: moment(end).format() });
+ // now receives the schedulerData and full args
+ const onEventMove = (schedulerData, event, newSlotId, newSlotName, newStart, newEnd) => {
+   // 1) Immediately update the scheduler UI
+   schedulerData.moveEvent(event, newSlotId, newSlotName, newStart, newEnd);
+   setSchedulerVersion(v => v + 1);
 
-    apiCall
-      .then(() => toast.success('Event moved'))
-      .catch((err) => {
-        toast.error('Failed to move event.');
-        loadData(); // Revert on failure
-      });
-  };
+   // 2) Then persist to backend
+   const apiCall = event.type === 'booking'
+     ? apiService.updateBooking(event.id, {
+         room: newSlotId,
+         startDate: moment(newStart).format(),
+         endDate:   moment(newEnd).format(),
+         status:    event.status,
+       })
+     : apiService.updateBlock(event.id, {
+         room: newSlotId,
+         startDate: moment(newStart).format(),
+         endDate:   moment(newEnd).format(),
+       });
+
+   apiCall
+     .then(() => toast.success('Event moved'))
+     .catch((err) => {
+       toast.error('Failed to move event.');
+       loadData(); // Roll back visually on failure
+     });
+ };
 
   const onEventResize = (ev, slotId, start, end) => {
     const apiCall = ev.type === 'booking'

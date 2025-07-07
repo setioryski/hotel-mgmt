@@ -1,27 +1,33 @@
-// src/client/services/SchedulerService.js
 import moment from 'moment';
 import { SchedulerData, ViewTypes, DATE_FORMAT } from 'react-big-scheduler';
 
 export class SchedulerService {
   constructor() {
+    // Initialize scheduler data with default view
     this.schedulerData = new SchedulerData(
-      moment().format(DATE_FORMAT),  // initial date
+      moment().format(DATE_FORMAT), // initial date
       ViewTypes.Month,               // initial view
       false,                         // showAgenda
-      false,                         // isEventPerspective
-      {
-        minuteStep: 30,
-        headerEnabled: false,
-        eventItemPopoverEnabled: false,
-
-        // ────────────────────────────────
-        // FORCE A FIXED ROW HEIGHT
-        // ────────────────────────────────
-        nonAgendaSlotMinHeight: 48,   // minimum row height in non-agenda (resource) views
-        eventItemHeight:       28,    // your custom event height (match your template)
-        eventItemLineHeight:   28     // make line-height match
-      }
+      false                          // isEventPerspective
     );
+    this.schedulerData.localeMoment = moment;
+
+    // ─────────────────────────────────────────────
+    // ENABLE DRAG & DROP ACROSS ROOMS & TIME
+    // ─────────────────────────────────────────────
+    this.schedulerData.config.movable           = true;
+    this.schedulerData.config.resizable         = true;
+    this.schedulerData.config.crossResourceMove = true;
+
+    // ─────────────────────────────────────────────
+    // CUSTOM UI SETTINGS
+    // ─────────────────────────────────────────────
+    this.schedulerData.config.minuteStep         = 30;
+    this.schedulerData.config.nonAgendaSlotMinHeight = 48;
+    this.schedulerData.config.eventItemHeight    = 28;
+    this.schedulerData.config.eventItemLineHeight= 28;
+    this.schedulerData.config.headerEnabled      = false;
+    this.schedulerData.config.eventItemPopoverEnabled = false;
   }
 
   /**
@@ -40,27 +46,42 @@ export class SchedulerService {
     }));
 
     const bookingEvents = (bookings || []).map((e) => {
-        let bgColor = '#3B82F6';
-        if (e.status === 'tentative') bgColor = '#FBBF24';
-        else if (e.status === 'checkedin') bgColor = '#10B981';
-        else if (e.status === 'checkedout') bgColor = '#EF4444';
-        return {
-            id: e.id, resourceId: e.resourceId, title: e.title,
-            start: moment(e.start).format(DATE_FORMAT),
-            end: moment(e.end).format(DATE_FORMAT),
-            bgColor, status: e.status, guestId: e.guestId,
-            price: e.price, totalPrice: e.totalPrice, type: 'booking',
-            notes: e.notes, // ADDED: Pass notes to event object
-        };
+      let bgColor = '#3B82F6';
+      if (e.status === 'tentative') bgColor = '#FBBF24';
+      else if (e.status === 'checkedin') bgColor = '#10B981';
+      else if (e.status === 'checkedout') bgColor = '#EF4444';
+      return {
+        id: e.id,
+        resourceId: e.resourceId,
+        title: e.title,
+        start: moment(e.start).format(DATE_FORMAT),
+        end: moment(e.end).format(DATE_FORMAT),
+        bgColor,
+        status: e.status,
+        guestId: e.guestId,
+        price: e.price,
+        totalPrice: e.totalPrice,
+        type: 'booking',
+        notes: e.notes,
+        // allow moving & resizing
+        movable: true,
+        resizable: true,
+      };
     });
 
     const blockEvents = (blocks || []).map((b) => ({
-        id: b.id, resourceId: b.resourceId, title: b.title || 'Blocked',
-        start: moment(b.start).format(DATE_FORMAT),
-        end: moment(b.end).format(DATE_FORMAT),
-        bgColor: '#999999', type: 'block',
+      id: b.id,
+      resourceId: b.resourceId,
+      title: b.title || 'Blocked',
+      start: moment(b.start).format(DATE_FORMAT),
+      end: moment(b.end).format(DATE_FORMAT),
+      bgColor: '#999999',
+      type: 'block',
+      movable: true,
+      resizable: true,
     }));
 
+    // Apply to schedulerData
     this.schedulerData.setResources(resourceList);
     this.schedulerData.setEvents([...bookingEvents, ...blockEvents]);
 
@@ -76,6 +97,6 @@ export class SchedulerService {
   };
 
   setDate = (date) => this.schedulerData.setDate(date);
-  prev = () => this.schedulerData.prev();
-  next = () => this.schedulerData.next();
+  prev    = () => this.schedulerData.prev();
+  next    = () => this.schedulerData.next();
 }
