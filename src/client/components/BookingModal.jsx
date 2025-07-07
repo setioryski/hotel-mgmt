@@ -12,7 +12,7 @@ const BookingModal = ({
   handleCancelBooking,   // only in single/edit mode
   selectedRoom,
   setSelectedRoom,
-  resources,             // room list
+  resources,             // room list, each with e.g. { id, number, type }
   guestInputRef,
   guestSearch,
   setGuestSearch,
@@ -57,7 +57,7 @@ const BookingModal = ({
   const [activeTab, setActiveTab] = useState('single');
   const [groupError, setGroupError] = useState('');
 
-  // Reset tab & errors when modal opens
+  // Reset when modal opens
   useEffect(() => {
     if (visible) {
       setActiveTab('single');
@@ -65,7 +65,15 @@ const BookingModal = ({
     }
   }, [visible]);
 
-  // Template for a new group entry
+  // Group rooms by type for optgroups
+  const groupedRooms = resources.reduce((acc, room) => {
+    const t = room.type || 'Uncategorized';
+    if (!acc[t]) acc[t] = [];
+    acc[t].push(room);
+    return acc;
+  }, {});
+
+  // Template for new group entry
   const blankEntry = {
     selectedRoom,
     selectedGuest,
@@ -77,7 +85,7 @@ const BookingModal = ({
 
   const [entries, setEntries] = useState([{ ...blankEntry }]);
 
-  // Reset entries when switching to Group tab
+  // Reset entries when switching to group tab
   useEffect(() => {
     if (visible && activeTab === 'multiple') {
       setEntries([{ ...blankEntry }]);
@@ -94,7 +102,7 @@ const BookingModal = ({
     bookingNotes,
   ]);
 
-  // Helpers to manage entries
+  // Helpers
   const addEntry = () => {
     const roomIds = resources.map(r => r.id);
     const lastRoomId = entries[entries.length - 1]?.selectedRoom;
@@ -105,16 +113,11 @@ const BookingModal = ({
     }
     setEntries([...entries, { ...blankEntry, selectedRoom: nextRoomId }]);
   };
-
-  const removeEntry = idx =>
-    setEntries(entries.filter((_, i) => i !== idx));
-
+  const removeEntry = idx => setEntries(entries.filter((_, i) => i !== idx));
   const updateEntry = (idx, field, value) =>
-    setEntries(entries.map((e, i) =>
-      i === idx ? { ...e, [field]: value } : e
-    ));
+    setEntries(entries.map((e, i) => i === idx ? { ...e, [field]: value } : e));
 
-  // Calculate exact integer nights × price
+  // Calculate exact nights × price
   function calcTotal({ bookingStart, bookingEnd, bookingPrice }) {
     if (!bookingStart || !bookingEnd || !bookingPrice) return 0;
     const [y1, m1, d1] = bookingStart.split('-').map(Number);
@@ -122,39 +125,35 @@ const BookingModal = ({
     const s = new Date(y1, m1 - 1, d1);
     const e = new Date(y2, m2 - 1, d2);
     const nights = Math.round((e.getTime() - s.getTime()) / MS_PER_DAY);
-    if (nights <= 0) return 0;
-    return nights * parseFloat(bookingPrice);
+    return nights > 0 ? nights * parseFloat(bookingPrice) : 0;
   }
 
-  // Sum of all entries
-  const groupTotal = entries
-    .reduce((sum, e) => sum + calcTotal(e), 0)
-    .toFixed(2);
+  const groupTotal = entries.reduce((sum, e) => sum + calcTotal(e), 0).toFixed(2);
 
-  // Handle group submit with validation
+  // Handle group submit
   const onMultiSubmit = e => {
     e.preventDefault();
     for (let i = 0; i < entries.length; i++) {
       const en = entries[i];
       if (!en.selectedRoom) {
-        setGroupError(`Entry ${i + 1}: Room is required`);
+        setGroupError(`Entry ${i+1}: Room is required`);
         return;
       }
       if (!en.selectedGuest) {
-        setGroupError(`Entry ${i + 1}: Guest is required`);
+        setGroupError(`Entry ${i+1}: Guest is required`);
         return;
       }
       if (!en.bookingStart || !en.bookingEnd) {
-        setGroupError(`Entry ${i + 1}: Check-in and check-out are required`);
+        setGroupError(`Entry ${i+1}: Check-in and check-out are required`);
         return;
       }
       if (new Date(en.bookingStart) >= new Date(en.bookingEnd)) {
-        setGroupError(`Entry ${i + 1}: Check-out must be after check-in`);
+        setGroupError(`Entry ${i+1}: Check-out must be after check-in`);
         return;
       }
       const priceNum = parseFloat(en.bookingPrice);
       if (isNaN(priceNum) || priceNum <= 0) {
-        setGroupError(`Entry ${i + 1}: Price per night must be > 0`);
+        setGroupError(`Entry ${i+1}: Price per night must be > 0`);
         return;
       }
     }
@@ -167,7 +166,7 @@ const BookingModal = ({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 px-4">
       <div className="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[85vh] overflow-y-auto">
-        {/* Tabs */}
+        {/* Tab headers */}
         <div className="flex border-b">
           <button
             className={`flex-1 py-3 text-center ${
@@ -192,14 +191,12 @@ const BookingModal = ({
         </div>
 
         {/* Shared error */}
-        {formError && (
-          <div className="text-red-600 px-6 py-3">{formError}</div>
-        )}
+        {formError && <div className="text-red-600 px-6 py-3">{formError}</div>}
 
-        {/* Single Booking */}
+        {/* Single Booking Form */}
         {activeTab === 'single' && (
           <form onSubmit={handleSubmit} className="p-6 space-y-4">
-            {/* Room */}
+            {/* Room select with types */}
             <div>
               <label className="block font-medium">Room:</label>
               <select
@@ -208,15 +205,19 @@ const BookingModal = ({
                 onChange={e => setSelectedRoom(e.target.value)}
               >
                 <option value="">— Select Room —</option>
-                {resources.map(r => (
-                  <option key={r.id} value={r.id}>
-                    Room {r.number}
-                  </option>
+                {Object.entries(groupedRooms).map(([type, rooms]) => (
+                  <optgroup key={type} label={type}>
+                    {rooms.map(r => (
+                      <option key={r.id} value={r.id}>
+                        Room {r.number}
+                      </option>
+                    ))}
+                  </optgroup>
                 ))}
               </select>
             </div>
 
-            {/* Guest autocomplete */}
+            {/* Guest autocomplete / add / edit */}
             <div ref={guestInputRef} className="relative">
               <label className="block font-medium mb-1">Guest:</label>
               <div className="flex items-center space-x-2">
@@ -272,7 +273,7 @@ const BookingModal = ({
               )}
             </div>
 
-            {/* New Guest Form */}
+            {/* New Guest */}
             {newGuestMode && (
               <div className="space-y-2 bg-gray-50 p-3 rounded">
                 {newGuestError && <div className="text-red-600">{newGuestError}</div>}
@@ -313,9 +314,9 @@ const BookingModal = ({
                   </button>
                 </div>
               </div>
-            )}            
+            )}
 
-            {/* Edit Guest Form */}
+            {/* Edit Guest */}
             {editingGuestMode && (
               <div className="space-y-2 bg-gray-50 p-3 rounded">
                 {editingGuestError && <div className="text-red-600">{editingGuestError}</div>}
@@ -460,17 +461,15 @@ const BookingModal = ({
           </form>
         )}
 
-        {/* Group Booking */}
+        {/* Group Booking Form */}
         {activeTab === 'multiple' && (
           <form onSubmit={onMultiSubmit} className="p-6 space-y-4">
-            {groupError && (
-              <div className="text-red-600 mb-2">{groupError}</div>
-            )}
+            {groupError && <div className="text-red-600 mb-2">{groupError}</div>}
 
             {entries.map((entry, i) => (
               <div key={i} className="border p-4 rounded space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="font-medium">Entry {i + 1}</h3>
+                  <h3 className="font-medium">Entry {i+1}</h3>
                   {entries.length > 1 && (
                     <button
                       type="button"
@@ -491,10 +490,14 @@ const BookingModal = ({
                     onChange={e => updateEntry(i, 'selectedRoom', e.target.value)}
                   >
                     <option value="">— Select Room —</option>
-                    {resources.map(r => (
-                      <option key={r.id} value={r.id}>
-                        Room {r.number}
-                      </option>
+                    {Object.entries(groupedRooms).map(([type, rooms]) => (
+                      <optgroup key={type} label={type}>
+                        {rooms.map(r => (
+                          <option key={r.id} value={r.id}>
+                            Room {r.number}
+                          </option>
+                        ))}
+                      </optgroup>
                     ))}
                   </select>
                 </div>
