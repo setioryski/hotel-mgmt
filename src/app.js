@@ -6,8 +6,8 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import expressLayouts from 'express-ejs-layouts';
 import { fileURLToPath } from 'url';
-import http from 'http'; // <-- ADDED: Import Node.js http module
-import { initSocket } from './socket.js'; // <-- ADDED: Import socket initializer
+import http from 'http';
+import { initSocket } from './socket.js';
 
 import sequelize from './config/sequelize.js';
 
@@ -36,8 +36,8 @@ import errorHandler from './middlewares/errorHandler.js';
 dotenv.config();
 
 const app = express();
-const server = http.createServer(app); // <-- ADDED: Create an HTTP server from the Express app
-initSocket(server); // <-- ADDED: Initialize Socket.IO and attach it to the server
+const server = http.createServer(app);
+initSocket(server);
 
 // Sync database (creates tables / applies associations)
 await sequelize.sync({ alter: true });
@@ -60,8 +60,10 @@ app.use(expressLayouts);
 app.set('layout', 'layout');
 
 // --- API routes ---
-app.use('/api/auth',     authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/bookings', bookingRoutes);
+// Legacy support: enable client calls to `/bookings/group` in production
+app.use('/bookings', bookingRoutes);
 app.use('/api/guests',   guestRoutes);
 app.use('/api/hotels',   hotelRoutes);
 app.use('/api/rooms',    roomRoutes);
@@ -159,7 +161,6 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 4000;
-// MODIFIED: Listen on the http server, not the express app
 server.listen(PORT, () =>
   console.log(`🚀 Server running on port ${PORT} with WebSocket support`)
 );
