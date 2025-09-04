@@ -4,10 +4,10 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-import expressLayouts from 'express-ejs-layouts';
+import expressLayouts from 'express-ejs-layouts'; // <-- REQUIRED: Import the library
 import { fileURLToPath } from 'url';
-import http from 'http'; // <-- ADDED: Import Node.js http module
-import { initSocket } from './socket.js'; // <-- ADDED: Import socket initializer
+import http from 'http';
+import { initSocket } from './socket.js';
 
 import sequelize from './config/sequelize.js';
 
@@ -36,8 +36,8 @@ import errorHandler from './middlewares/errorHandler.js';
 dotenv.config();
 
 const app = express();
-const server = http.createServer(app); // <-- ADDED: Create an HTTP server from the Express app
-initSocket(server); // <-- ADDED: Initialize Socket.IO and attach it to the server
+const server = http.createServer(app);
+initSocket(server);
 
 // Sync database (creates tables / applies associations)
 await sequelize.sync({ alter: true });
@@ -53,11 +53,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, '../public')));
 
-// EJS + layouts
+// EJS + layouts Configuration
 app.set('views', path.join(__dirname, '../views'));
 app.set('view engine', 'ejs');
-app.use(expressLayouts);
-app.set('layout', 'layout');
+app.use(expressLayouts); // <-- REQUIRED: Tell Express to use the layout middleware
+app.set('layout', 'layout'); // <-- REQUIRED: Set the default layout file to 'views/layout.ejs'
 
 // --- API routes ---
 app.use('/api/auth',     authRoutes);
@@ -146,6 +146,46 @@ app.get(
   }
 );
 
+app.get(
+  '/admin/hotels/:hotelId/accounting/sales-report',
+  protect,
+  authorize('admin'),
+  async (req, res, next) => {
+    try {
+      const hotel = await Hotel.findByPk(req.params.hotelId);
+      if (!hotel) {
+        return res.status(404).render('404', { title: 'Hotel Not Found' });
+      }
+
+      const bookings = await Booking.findAll({
+        where: {
+          status: 'completed',
+        },
+        include: [
+          { model: Guest, required: true },
+          {
+            model: Room,
+            required: true,
+            where: {
+              HotelId: req.params.hotelId
+            }
+          }
+        ],
+        order: [['startDate', 'DESC']]
+      });
+
+      res.render('admin/sales-report', {
+        title: `${hotel.name} - Sales Report`,
+        hotel,
+        bookings,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+
 app.get('/login', (req, res) =>
   res.render('auth/login', { title: 'Login' })
 );
@@ -159,7 +199,6 @@ app.use(errorHandler);
 
 // Start server
 const PORT = process.env.PORT || 4000;
-// MODIFIED: Listen on the http server, not the express app
 server.listen(PORT, () =>
   console.log(`🚀 Server running on port ${PORT} with WebSocket support`)
 );

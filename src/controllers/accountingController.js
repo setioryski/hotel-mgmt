@@ -1,188 +1,127 @@
-// src/controllers/accountingController.js
-
-import { validationResult } from 'express-validator';
-import { Op } from 'sequelize';
 import AccountingEntry from '../models/AccountingEntry.js';
-import Hotel from '../models/Hotel.js';
-import Room from '../models/Room.js';
 import Booking from '../models/Booking.js';
 import Guest from '../models/Guest.js';
+import Room from '../models/Room.js';
+import Hotel from '../models/Hotel.js';
+import { validationResult } from 'express-validator';
 
-/**
- * GET /api/accountings?hotel=:hotelId&startDate=:startDate&endDate=:endDate
- * Returns all accounting entries for a hotel from the database.
- * Automatically creates and persists income entries for any bookings that are missing one.
- * If startDate and endDate are provided, it will filter the results.
- */
-export const getEntries = async (req, res, next) => {
-  try {
-    const hotelId = req.query.hotel;
-    const { startDate, endDate } = req.query; // get dates from query
-
-    if (!hotelId) {
-      return res.status(400).json({ error: 'Missing hotel query parameter' });
-    }
-    const hotel = await Hotel.findByPk(hotelId);
-    if (!hotel) {
-      return res.status(404).json({ error: 'Hotel not found' });
-    }
-
-    // 1. Fetch all rooms in this hotel
-    const rooms = await Room.findAll({
-      where: { HotelId: hotelId },
-      attributes: ['id']
-    });
-    const roomIds = rooms.map(r => r.id);
-
-    // 2. All non-cancelled bookings for those rooms
-    const bookings = await Booking.findAll({
-      where: {
-        RoomId: { [Op.in]: roomIds },
-        status: { [Op.ne]: 'cancelled' }
-      },
-      include: [{ model: Guest, attributes: ['name'] }]
-    });
-
-    // 3. Find which bookings already have a persisted entry
-    const bookingIdsWithEntries = await AccountingEntry.findAll({
-      where: {
-        BookingId: { [Op.in]: bookings.map(b => b.id) }
-      },
-      attributes: ['BookingId']
-    }).then(entries => new Set(entries.map(e => e.BookingId.toString())));
-
-    // 4. Filter for bookings that do NOT have an entry and create them
-    const newEntriesToCreate = bookings
-      .filter(b => !bookingIdsWithEntries.has(b.id.toString()))
-      .map(b => ({
-        BookingId:   b.id,
-        HotelId:     hotelId,
-        type:        'income',
-        amount:      parseFloat(b.totalPrice),
-        description: `Booking #${b.id} (${b.Guest?.name || 'Guest'})`,
-        date:        b.startDate,
-      }));
-
-    if (newEntriesToCreate.length > 0) {
-      await AccountingEntry.bulkCreate(newEntriesToCreate);
-    }
-
-    // 5. Build the date filtering condition
-    const whereCondition = { HotelId: hotelId };
-    if (startDate && endDate) {
-      whereCondition.date = {
-        [Op.between]: [startDate, endDate]
-      };
-    } else if (startDate) {
-      whereCondition.date = {
-        [Op.gte]: startDate
-      }
-    } else if (endDate) {
-      whereCondition.date = {
-        [Op.lte]: endDate
-      }
-    }
-
-
-    // 6. Fetch ALL entries for the hotel (now including the newly created ones and filtered by date)
-    const allEntries = await AccountingEntry.findAll({
-      where: whereCondition,
-      order: [['date', 'DESC']]
-    });
-
-    // 7. Calculate total income and expense
-    const totalIncome = allEntries
-      .filter(e => e.type === 'income')
-      .reduce((sum, e) => sum + parseFloat(e.amount), 0);
-
-    const totalExpense = allEntries
-      .filter(e => e.type === 'expense')
-      .reduce((sum, e) => sum + parseFloat(e.amount), 0);
-
-    const netProfit = totalIncome - totalExpense;
-
-    // 8. Return the complete, clean list from the database with net profit
-    return res.json({
-        entries: allEntries,
-        totalIncome,
-        totalExpense,
-        netProfit,
-    });
-
-  } catch (err) {
-    next(err);
-  }
-};
-
-
-/**
- * POST /api/accountings?hotel=:hotelId
- * Create a manual income/expense entry.
- */
-export const addEntry = async (req, res, next) => {
-  try {
+// Your existing function to get entries
+export const getEntries = async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
-    const hotelId = req.query.hotel;
-    if (!hotelId) return res.status(400).json({ error: 'Missing hotel query parameter' });
-
-    const hotel = await Hotel.findByPk(hotelId);
-    if (!hotel) return res.status(404).json({ error: 'Hotel not found' });
-
-    const { type, amount, description, date } = req.body;
-    const entry = await AccountingEntry.create({
-      type,
-      amount,
-      description: description || '',
-      date:        date || new Date(),
-      HotelId:     hotelId
-    });
-
-    return res.status(201).json(entry);
-  } catch (err) {
-    next(err);
-  }
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+        const { hotelId } = req.params;
+        const hotel = await Hotel.findByPk(hotelId);
+        const entries = await AccountingEntry.findAll({ where: { hotelId } });
+        res.render('admin/hotel_accounting', {
+            title: `${hotel.name} - Accounting`,
+            hotel,
+            entries,
+            layout: 'layout'
+        });
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Server Error');
+    }
 };
 
-/**
- * PUT /api/accountings/:id
- * Update an existing entry.
- */
-export const updateEntry = async (req, res, next) => {
-  try {
+// Your existing function to add an entry
+export const addEntry = async (req, res) => {
     const errors = validationResult(req);
-    if (!errors.isEmpty()) return res.status(400).json({ errors: errors.array() });
-
-    const entry = await AccountingEntry.findByPk(req.params.id);
-    if (!entry) return res.status(404).json({ error: 'Entry not found' });
-
-    const { type, amount, description, date } = req.body;
-    await entry.update({
-      ...(type        !== undefined && { type }),
-      ...(amount      !== undefined && { amount }),
-      ...(description !== undefined && { description }),
-      ...(date        !== undefined && { date })
-    });
-
-    return res.json(entry);
-  } catch (err) {
-    next(err);
-  }
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+        const { hotelId } = req.params;
+        const { date, description, type, amount } = req.body;
+        await AccountingEntry.create({
+            date,
+            description,
+            type,
+            amount,
+            hotelId,
+        });
+        res.redirect(`/admin/hotels/${hotelId}/accounting`);
+    } catch (error) {
+        console.error(error);
+        res.status(500).send('Server Error');
+    }
 };
 
-/**
- * DELETE /api/accountings/:id
- * Delete an entry.
- */
-export const deleteEntry = async (req, res, next) => {
-  try {
-    const entry = await AccountingEntry.findByPk(req.params.id);
-    if (!entry) return res.status(404).json({ error: 'Entry not found' });
+// NEW: Add this function to handle rendering the sales report page
+export const renderSalesReport = async (req, res, next) => {
+    try {
+        // The hotelId is now available because we used { mergeParams: true } in the router
+        const { hotelId } = req.params; 
+        const hotel = await Hotel.findByPk(hotelId);
 
-    await entry.destroy();
-    return res.status(204).end();
-  } catch (err) {
-    next(err);
-  }
+        if (!hotel) {
+            return res.status(404).render('404', { title: 'Not Found' });
+        }
+
+        // Fetch completed bookings for the specific hotel
+        // and include the related Guest and Room data for display
+        const bookings = await Booking.findAll({
+            where: {
+                hotelId,
+                status: 'completed',
+            },
+            include: [
+                { model: Guest, required: true },
+                { model: Room, required: true }
+            ],
+            order: [['startDate', 'DESC']]
+        });
+
+        res.render('admin/sales-report', {
+            title: `${hotel.name} - Sales Report`,
+            hotel,
+            bookings,
+            layout: 'layout'
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Your existing function to update an entry
+export const updateEntry = async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+        const { id } = req.params;
+        const entry = await AccountingEntry.findByPk(id);
+        if (!entry) {
+            return res.status(404).json({ msg: 'Entry not found' });
+        }
+        await entry.update(req.body);
+        res.json(entry);
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).send('Server Error');
+    }
+};
+
+// Your existing function to delete an entry
+export const deleteEntry = async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+    try {
+        const { id } = req.params;
+        const entry = await AccountingEntry.findByPk(id);
+        if (!entry) {
+            return res.status(404).json({ msg: 'Entry not found' });
+        }
+        await entry.destroy();
+        res.json({ msg: 'Entry removed' });
+    } catch (error) {
+        console.error(error.message);
+        res.status(500).send('Server Error');
+    }
 };

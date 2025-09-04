@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/tailwind.css">
+</head>
+<body class="bg-gray-100">
+
+<header class="bg-white shadow-md">
+    <nav class="container mx-auto px-6 py-3">
+        <div class="flex justify-between items-center">
+            <a href="/admin/hotels" class="text-2xl font-bold text-gray-800">Hotel PMS</a>
+            <div class="flex items-center">
+                 <% if (typeof hotel !== 'undefined') { %>
+                    <div class="relative">
+                        <button id="menu-button" class="flex items-center text-gray-600 focus:outline-none">
+                            <span class="mr-2">Hotel Menu</span>
+                            <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                        <div id="menu-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-md shadow-xl z-20">
+                            <a href="/admin/hotels/<%= hotel.id %>/calendar" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Calendar</a>
+                            <a href="/admin/hotels/<%= hotel.id %>/rooms" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Rooms</a>
+                            <a href="/admin/hotels/<%= hotel.id %>/guests" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Guests</a>
+                            <a href="/admin/hotels/<%= hotel.id %>/accounting" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Accounting</a>
+                            <a href="/admin/hotels/<%= hotel.id %>/accounting/sales-report" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Sales Report</a>
+                        </div>
+                    </div>
+                <% } %>
+                <a href="/auth/logout" class="ml-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600">Logout</a>
+            </div>
+        </div>
+    </nav>
+</header>
+<main>
+    <div class="container mx-auto px-4 py-8">
+        <div class="bg-white p-6 rounded-lg shadow-md">
+            <h1 class="text-3xl font-bold mb-6 text-gray-800 border-b pb-4">Sales Report & Invoice Generation</h1>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full bg-white">
+                    <thead class="bg-gray-200 text-gray-600 uppercase text-sm leading-normal">
+                        <tr>
+                            <th class="py-3 px-6 text-left">
+                                <input type="checkbox" id="selectAll" class="form-checkbox h-5 w-5 text-blue-600">
+                            </th>
+                            <th class="py-3 px-6 text-left">Guest</th>
+                            <th class="py-3 px-6 text-left">Room</th>
+                            <th class="py-3 px-6 text-center">Check-in</th>
+                            <th class="py-3 px-6 text-center">Check-out</th>
+                            <th class="py-3 px-6 text-right">Total Price</th>
+                            <th class="py-3 px-6 text-center">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="text-gray-600 text-sm font-light">
+                        <% bookings.forEach(booking => { %>
+                            <tr class="border-b border-gray-200 hover:bg-gray-100"
+                                data-booking-id="<%= booking.id %>"
+                                data-guest-name="<%= booking.Guest.name %>"
+                                data-room-name="<%= booking.Room.number %> (<%= booking.Room.type %>)"
+                                data-check-in="<%= new Date(booking.startDate).toLocaleDateString() %>"
+                                data-check-out="<%= new Date(booking.endDate).toLocaleDateString() %>"
+                                data-total-price="<%= booking.totalPrice %>">
+                                <td class="py-3 px-6 text-left">
+                                    <input type="checkbox" class="booking-checkbox form-checkbox h-5 w-5 text-blue-600" data-price="<%= booking.totalPrice %>">
+                                </td>
+                                <td class="py-3 px-6 text-left whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <span class="font-medium"><%= booking.Guest.name %></span>
+                                    </div>
+                                </td>
+                                <td class="py-3 px-6 text-left">
+                                    <%= booking.Room.number %> (<%= booking.Room.type %>)
+                                </td>
+                                <td class="py-3 px-6 text-center">
+                                    <%= new Date(booking.startDate).toLocaleDateString() %>
+                                </td>
+                                <td class="py-3 px-6 text-center">
+                                    <%= new Date(booking.endDate).toLocaleDateString() %>
+                                </td>
+                                <td class="py-3 px-6 text-right">
+                                    $<%= parseFloat(booking.totalPrice).toFixed(2) %>
+                                </td>
+                                <td class="py-3 px-6 text-center">
+                                    <span class="bg-green-200 text-green-600 py-1 px-3 rounded-full text-xs"><%= booking.status %></span>
+                                </td>
+                            </tr>
+                        <% }) %>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-8 flex justify-between items-center">
+                <div>
+                    <h3 class="text-xl font-semibold text-gray-700">Invoice Summary</h3>
+                    <p class="text-gray-600">
+                        <span id="selected-count">0</span> booking(s) selected.
+                    </p>
+                    <p class="text-2xl font-bold text-gray-800 mt-2">
+                        Total: $<span id="total-amount">0.00</span>
+                    </p>
+                </div>
+                <button id="print-invoice-btn" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 transition duration-300 ease-in-out disabled:bg-gray-400" disabled>
+                    Generate & Print Invoice
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const menuButton = document.getElementById('menu-button');
+        const menuDropdown = document.getElementById('menu-dropdown');
+
+        if (menuButton) {
+            menuButton.addEventListener('click', function() {
+                menuDropdown.classList.toggle('hidden');
+            });
+
+            document.addEventListener('click', function(event) {
+                if (!menuButton.contains(event.target) && !menuDropdown.contains(event.target)) {
+                    menuDropdown.classList.add('hidden');
+                }
+            });
+        }
+    });
+</script>
+<script src="/js/sales-report.js"></script>
+</body>
+</html>
