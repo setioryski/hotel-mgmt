@@ -117,28 +117,31 @@ const BookingModal = ({
   const updateEntry = (idx, field, value) =>
     setEntries(entries.map((e, i) => i === idx ? { ...e, [field]: value } : e));
 
-  // Calculate exact nights × price
+  // --- FIX START: Improved client-side calculation for display ---
   function calcTotal({ bookingStart, bookingEnd, bookingPrice }) {
     if (!bookingStart || !bookingEnd || !bookingPrice) return 0;
 
-    const [y1, m1, d1] = bookingStart.split('-').map(Number);
-    const [y2, m2, d2] = bookingEnd.split('-').map(Number);
+    const startDate = new Date(bookingStart);
+    const endDate = new Date(bookingEnd);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return 0;
 
-    const startTime = Date.UTC(y1, m1 - 1, d1);
-    const endTime = Date.UTC(y2, m2 - 1, d2);
+    const startTime = Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate());
+    const endTime = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate());
 
     const nights = Math.round((endTime - startTime) / MS_PER_DAY);
-
     if (nights <= 0) return 0;
 
-    // Handle prices that may include thousands separators like "250.000"
-    const priceString = String(bookingPrice).replace(/\./g, ''); // Remove dots
-    const price = parseFloat(priceString.replace(',', '.')); // Handle comma decimal
+    // Handle prices that may include thousands separators like "250.000" or "250,00"
+    const priceString = String(bookingPrice).replace(/\./g, '').replace(',', '.');
+    const price = parseFloat(priceString);
 
     if (isNaN(price)) return 0;
-
-    return nights * price;
+    
+    const total = nights * price;
+    // Round to 2 decimal places to avoid floating point display errors
+    return Math.round(total * 100) / 100;
   }
+  // --- FIX END ---
 
 
   const groupTotal = entries.reduce((sum, e) => sum + calcTotal(e), 0).toFixed(2);
@@ -171,7 +174,20 @@ const BookingModal = ({
       }
     }
     setGroupError('');
-    handleSubmit(entries);
+    
+    const entriesToSubmit = entries.map(entry => {
+      const price = String(entry.bookingPrice).replace(/\./g, '').replace(',', '.');
+      return {
+        room: entry.selectedRoom,
+        guest: entry.selectedGuest,
+        startDate: entry.bookingStart,
+        endDate: entry.bookingEnd,
+        price: parseFloat(price),
+        notes: entry.bookingNotes,
+        // No longer sending totalPrice, the server will calculate it
+      };
+    });
+    handleSubmit(entriesToSubmit);
   };
 
   if (!visible) return null;

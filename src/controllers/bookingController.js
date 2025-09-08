@@ -9,6 +9,7 @@ import { getIO } from '../socket.js';
 
 const ALLOWED_INITIAL_STATUSES = ['tentative', 'booked'];
 const ALL_STATUSES = ['tentative', 'booked', 'checkedin', 'checkedout', 'cancelled'];
+const MS_PER_DAY = 1000 * 60 * 60 * 24;
 
 /**
  * Helper function to emit a 'dataUpdated' event to the appropriate hotel room via Socket.IO.
@@ -22,9 +23,40 @@ const notifyClients = (hotelId) => {
 };
 
 /**
+ * Helper function to calculate total price based on dates and rate.
+ * This is the single source of truth for price calculation.
+ */
+const calculateTotalPrice = (startDateStr, endDateStr, price) => {
+    if (!startDateStr || !endDateStr || price == null) return 0;
+
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+
+    // Ensure dates are valid
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return 0;
+    }
+    
+    // Use UTC to avoid timezone issues in calculation
+    const startTime = Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate());
+    const endTime = Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate());
+
+    const nights = Math.round((endTime - startTime) / MS_PER_DAY);
+    if (nights <= 0) return 0;
+    
+    const numericPrice = parseFloat(String(price).replace(/,/g, '.'));
+    if (isNaN(numericPrice)) return 0;
+
+    // Perform calculation and round to 2 decimal places to avoid floating point issues
+    const total = nights * numericPrice;
+    return Math.round(total * 100) / 100;
+};
+
+
+/**
  * Create a new booking.
  * ✅ Validates against existing blocks and bookings.
- * Automatically generates an 'income' accounting entry.
+ * ✅ Always recalculates total price on the server.
  * Notifies clients via WebSocket upon successful creation.
  */
 export const createBooking = async (req, res, next) => {
@@ -36,7 +68,7 @@ export const createBooking = async (req, res, next) => {
       endDate,
       status,
       price: overrideRate,
-      totalPrice: overrideTotal,
+      // totalPrice is deliberately ignored from the request body
       notes,
     } = req.body;
 
@@ -46,7 +78,6 @@ export const createBooking = async (req, res, next) => {
       return res.status(404).json({ msg: 'Invalid room or guest ID' });
     }
     
-    // --- FIX START: Add conflict validation ---
     // 1. Check for overlapping room blocks
     const overlappingBlock = await RoomBlock.findOne({
       where: {
@@ -71,17 +102,21 @@ export const createBooking = async (req, res, next) => {
     if (overlappingBooking) {
       return res.status(409).json({ msg: 'This date range is already booked.' });
     }
-    // --- FIX END ---
 
     const bookingStatus = (status && ALLOWED_INITIAL_STATUSES.includes(status)) ? status : 'booked';
+
+    // --- FIX START: Always calculate total price on the server ---
+    const finalRate = overrideRate || roomDoc.price;
+    const finalTotalPrice = calculateTotalPrice(startDate, endDate, finalRate);
+    // --- FIX END ---
 
     const booking = await Booking.create({
       RoomId: roomId,
       GuestId: guestId,
       startDate,
       endDate,
-      price: overrideRate || roomDoc.price,
-      totalPrice: overrideTotal || roomDoc.price,
+      price: finalRate,
+      totalPrice: finalTotalPrice, // Use server-calculated price
       status: bookingStatus,
       notes,
     });
@@ -106,7 +141,7 @@ export const createBooking = async (req, res, next) => {
 /**
  * Update an existing booking.
  * ✅ Validates against existing blocks and bookings.
- * Handles changes in dates, price, status, or room.
+ * ✅ Recalculates total price if relevant fields change.
  * Notifies clients of the original and new hotel (if changed).
  */
 export const updateBooking = async (req, res, next) => {
@@ -117,10 +152,11 @@ export const updateBooking = async (req, res, next) => {
       return res.status(404).json({ msg: 'Booking not found' });
     }
 
-    // --- FIX START: Add conflict validation ---
-    const checkRoomId = req.body.RoomId || booking.RoomId;
-    const checkStartDate = req.body.startDate || booking.startDate;
-    const checkEndDate = req.body.endDate || booking.endDate;
+    const { startDate, endDate, price, RoomId } = req.body;
+    
+    const checkRoomId = RoomId || booking.RoomId;
+    const checkStartDate = startDate || booking.startDate;
+    const checkEndDate = endDate || booking.endDate;
 
     // 1. Check for overlapping room blocks
     const overlappingBlock = await RoomBlock.findOne({
@@ -147,11 +183,20 @@ export const updateBooking = async (req, res, next) => {
     if (overlappingBooking) {
         return res.status(409).json({ msg: 'This date range is already booked by another party.' });
     }
-    // --- FIX END ---
     
     const originalHotelId = booking.Room.Hotel.id;
 
-    await booking.update(req.body);
+    // --- FIX START: Recalculate total price on update ---
+    const finalData = { ...req.body };
+    const newPrice = price !== undefined ? price : booking.price;
+    
+    // Always recalculate total price if dates or price are changing
+    if (startDate || endDate || price !== undefined) {
+        finalData.totalPrice = calculateTotalPrice(checkStartDate, checkEndDate, newPrice);
+    }
+    // --- FIX END ---
+    
+    await booking.update(finalData);
 
     const updatedBooking = await Booking.findByPk(bookingId, { include: [{ model: Room, include: [Hotel] }, Guest] });
     const newHotelId = updatedBooking.Room.Hotel.id;
