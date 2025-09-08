@@ -1,13 +1,12 @@
-// src/app.js
-
 import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
-import expressLayouts from 'express-ejs-layouts'; // <-- REQUIRED: Import the library
+import expressLayouts from 'express-ejs-layouts';
 import { fileURLToPath } from 'url';
 import http from 'http';
 import { initSocket } from './socket.js';
+import { Op } from 'sequelize';
 
 import sequelize from './config/sequelize.js';
 
@@ -19,6 +18,7 @@ import User from './models/User.js';
 import Booking from './models/Booking.js';
 import RoomBlock from './models/RoomBlock.js';
 import AccountingEntry from './models/AccountingEntry.js';
+import './models/InvoiceSetting.js'; // Import model baru
 
 // Import API routes
 import authRoutes from './routes/authRoutes.js';
@@ -28,6 +28,7 @@ import hotelRoutes from './routes/hotelRoutes.js';
 import roomRoutes from './routes/roomRoutes.js';
 import blockRoutes from './routes/blockRoutes.js';
 import accountingRoutes from './routes/accountingRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js'; // Import route baru
 
 // Import auth middlewares
 import { protect, authorize } from './middlewares/auth.js';
@@ -53,11 +54,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname  = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, '../public')));
 
-// EJS + layouts Configuration
+// EJS + layouts
 app.set('views', path.join(__dirname, '../views'));
 app.set('view engine', 'ejs');
-app.use(expressLayouts); // <-- REQUIRED: Tell Express to use the layout middleware
-app.set('layout', 'layout'); // <-- REQUIRED: Set the default layout file to 'views/layout.ejs'
+app.use(expressLayouts);
+app.set('layout', 'layout');
 
 // --- API routes ---
 app.use('/api/auth',     authRoutes);
@@ -67,6 +68,7 @@ app.use('/api/hotels',   hotelRoutes);
 app.use('/api/rooms',    roomRoutes);
 app.use('/api/blocks',   blockRoutes);
 app.use('/api/accountings', accountingRoutes);
+app.use('/api/settings', settingsRoutes); // Daftarkan route API baru
 
 // --- Page routes (EJS) ---
 app.get('/', (req, res) =>
@@ -159,7 +161,9 @@ app.get(
 
       const bookings = await Booking.findAll({
         where: {
-          status: 'completed',
+            status: {
+                [Op.ne]: 'cancelled'
+            }
         },
         include: [
           { model: Guest, required: true },
@@ -178,6 +182,26 @@ app.get(
         title: `${hotel.name} - Sales Report`,
         hotel,
         bookings,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+app.get(
+  '/admin/hotels/:hotelId/settings',
+  protect,
+  authorize('admin'),
+  async (req, res, next) => {
+    try {
+      const hotel = await Hotel.findByPk(req.params.hotelId);
+      if (!hotel) {
+        return res.status(404).render('404', { title: 'Not Found' });
+      }
+      res.render('admin/invoice_settings', {
+        title: `Invoice Settings - ${hotel.name}`,
+        hotel,
       });
     } catch (err) {
       next(err);

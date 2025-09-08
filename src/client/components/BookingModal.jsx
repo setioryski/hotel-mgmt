@@ -120,13 +120,26 @@ const BookingModal = ({
   // Calculate exact nights × price
   function calcTotal({ bookingStart, bookingEnd, bookingPrice }) {
     if (!bookingStart || !bookingEnd || !bookingPrice) return 0;
+
     const [y1, m1, d1] = bookingStart.split('-').map(Number);
     const [y2, m2, d2] = bookingEnd.split('-').map(Number);
-    const s = new Date(y1, m1 - 1, d1);
-    const e = new Date(y2, m2 - 1, d2);
-    const nights = Math.round((e.getTime() - s.getTime()) / MS_PER_DAY);
-    return nights > 0 ? nights * parseFloat(bookingPrice) : 0;
+
+    const startTime = Date.UTC(y1, m1 - 1, d1);
+    const endTime = Date.UTC(y2, m2 - 1, d2);
+
+    const nights = Math.round((endTime - startTime) / MS_PER_DAY);
+
+    if (nights <= 0) return 0;
+
+    // Handle prices that may include thousands separators like "250.000"
+    const priceString = String(bookingPrice).replace(/\./g, ''); // Remove dots
+    const price = parseFloat(priceString.replace(',', '.')); // Handle comma decimal
+
+    if (isNaN(price)) return 0;
+
+    return nights * price;
   }
+
 
   const groupTotal = entries.reduce((sum, e) => sum + calcTotal(e), 0).toFixed(2);
 
@@ -151,7 +164,7 @@ const BookingModal = ({
         setGroupError(`Entry ${i+1}: Check-out must be after check-in`);
         return;
       }
-      const priceNum = parseFloat(en.bookingPrice);
+      const priceNum = parseFloat(String(en.bookingPrice).replace(/\./g, '').replace(',', '.'));
       if (isNaN(priceNum) || priceNum <= 0) {
         setGroupError(`Entry ${i+1}: Price per night must be > 0`);
         return;
@@ -385,8 +398,7 @@ const BookingModal = ({
             <div>
               <label className="block font-medium">Price per Night</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
                 className="w-full border px-2 py-1 rounded"
                 value={bookingPrice}
                 onChange={e => setBookingPrice(e.target.value)}
@@ -546,12 +558,10 @@ const BookingModal = ({
                   <div className="flex-1">
                     <label className="block font-medium mb-1">Price (per night):</label>
                     <input
-                      type="number"
+                      type="text"
                       className="w-full border px-2 py-1 rounded"
                       value={entry.bookingPrice}
                       onChange={e => updateEntry(i, 'bookingPrice', e.target.value)}
-                      min="0"
-                      step="0.01"
                     />
                   </div>
                   <div className="flex-1">

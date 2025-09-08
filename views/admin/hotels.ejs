@@ -10,12 +10,20 @@
 
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
     <h1 class="text-2xl font-bold mb-4 sm:mb-0">Manage Hotels</h1>
-    <button
-      id="addHotelBtn"
-      class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full sm:w-auto"
-    >
-      + Add Hotel
-    </button>
+    <div class="flex space-x-2">
+      <button
+        id="addHotelBtn"
+        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 w-full sm:w-auto"
+      >
+        + Add Hotel
+      </button>
+      <a
+        href="/admin/hotels/settings"
+        class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 w-full sm:w-auto"
+      >
+        Invoice Settings
+      </a>
+    </div>
   </div>
 
   <div class="overflow-x-auto">
@@ -116,6 +124,7 @@
                 <a href="/admin/hotels/${h.id}/calendar" class="text-purple-600 hover:underline">Calendar</a>
                 <a href="/admin/hotels/${h.id}/accounting" class="text-indigo-600 hover:underline">Accounting</a>
                 <a href="/admin/hotels/${h.id}/accounting/sales-report" class="text-cyan-600 hover:underline">Sales Report</a>
+                <a href="/admin/hotels/${h.id}/settings" class="text-gray-600 hover:underline">Invoice Settings</a>
                 <button data-id="${h.id}" class="editHotelBtn text-yellow-600 hover:underline text-left sm:text-right">Edit</button>
               </div>
             </td>
